@@ -1,0 +1,35 @@
+{
+  "description": "FindIt 매칭 성능 골든셋 v1. 질의=자연어 분실신고, expected=정답 습득물 atcId. 코퍼스: eval/data/corpus.json (2026-08 습득물 2000건). type=질의 유형(성능 특성 분석용).",
+  "queries": [
+    { "id": "q01", "query": "닥스 검정색 남성 반지갑 잃어버렸어요", "expected": "F2026083100003998", "type": "brand_syn", "note": "DAKS 지갑" },
+    { "id": "q02", "query": "jillstuart 라임색 지갑", "expected": "F2026083100003775", "type": "brand", "note": "jillstuart 지갑" },
+    { "id": "q03", "query": "게스 검정 에코백", "expected": "F2026083100003927", "type": "brand_syn", "note": "GUESS 에코가방" },
+    { "id": "q04", "query": "아이코스 전자담배 잃어버림", "expected": "F2026083100003898", "type": "brand_syn", "note": "IQOS 전자담배" },
+    { "id": "q05", "query": "레드미 검정 핸드폰", "expected": "F2026083100003867", "type": "brand", "note": "Redmi 핸드폰" },
+    { "id": "q06", "query": "미래에셋 신한 검정 카드", "expected": "F2026083100003996", "type": "exact", "note": "미래에셋증권카드, 신한은행카드" },
+    { "id": "q07", "query": "카카오뱅크 초록색 체크카드", "expected": "F2026083100003858", "type": "exact", "note": "카카오뱅크 카드" },
+    { "id": "q08", "query": "현대자동차 스마트키 흰색", "expected": "F2026083100003940", "type": "exact", "note": "현대자동차 스마트 키" },
+    { "id": "q09", "query": "뉴발란스 파란색 쇼핑백", "expected": "F2026083100002816", "type": "brand", "note": "뉴발란스 쇼핑백" },
+    { "id": "q10", "query": "엘지 흰색 노트북", "expected": "F2026083100002588", "type": "brand_syn", "note": "LG노트북" },
+    { "id": "q11", "query": "무라카미 하루키 소설책 1Q84", "expected": "F2026083100002958", "type": "semantic", "note": "1084(무라카미 하루키 장편소설)" },
+    { "id": "q12", "query": "카키색 크로스백 가방", "expected": "F2026083100003984", "type": "color_cat", "note": "카키색 크로스백" },
+
+    { "id": "q13", "query": "프라다 검정 카드지갑", "expected": "F2026083100003747", "type": "brand", "note": "프라다 카드지갑(+신분증/카드)" },
+    { "id": "q14", "query": "페라가모 남성 지갑", "expected": "F2026083100003405", "type": "brand", "note": "페라가모 카드지갑" },
+    { "id": "q15", "query": "보테가 라임색 지갑", "expected": "F2026083100003203", "type": "brand", "note": "보테가 카드지갑" },
+    { "id": "q16", "query": "캘빈클라인 CK 검정 가방", "expected": "F2026083100003092", "type": "abbrev_syn", "note": "ck가방" },
+    { "id": "q17", "query": "엠씨엠 여성 가방", "expected": "F2026083100002752", "type": "abbrev_syn", "note": "mcm여성용 가방 (MCM→엠씨엠)" },
+    { "id": "q18", "query": "헬스보이짐 검정 가방", "expected": "F2026083100003296", "type": "brand_syn", "note": "검정가방(HEALTHBOYGYM)" },
+    { "id": "q19", "query": "기업은행 대한항공 스카이패스 카드", "expected": "F2026083100003818", "type": "semantic", "note": "기업은행카드 (KOREAN AIR SKYPASS) — 영→한 의미매칭" },
+    { "id": "q20", "query": "롯데 하이마트 하이클래스 카드", "expected": "V0007664L08190008", "type": "exact", "note": "롯데카드(롯데하이마트 Hi-Class카드)" },
+    { "id": "q21", "query": "삼성 갤럭시 A17 블루", "expected": "F2026083100002067", "type": "model_exact", "note": "삼성갤럭시 A17 블루" },
+    { "id": "q22", "query": "JBL 무선 이어폰", "expected": "F2026083100002103", "type": "brand", "note": "파우치 속 JBL무선이어폰" },
+    { "id": "q23", "query": "기아 자동차 스마트키", "expected": "F2026083100003169", "type": "brand_syn", "note": "기아자동차 무선 차량열쇠 (차량열쇠→스마트키)" },
+    { "id": "q24", "query": "라도 손목시계", "expected": "V0007482L08180004", "type": "brand_syn", "note": "RADO 손목시계 (RADO→라도)" },
+    { "id": "q25", "query": "그린핑그 시나모롤 선스틱", "expected": "F2026083100002391", "type": "typo", "note": "그린핑거 순한 무기자차 선스틱 (시나모롤) — 오타" },
+    { "id": "q26", "query": "히말라야 핑크솔트 클렌징폼", "expected": "F2026083100002399", "type": "partial", "note": "벨먼 히말라야핑크솔트 젠틀 클렌징폼 200ml" },
+    { "id": "q27", "query": "스위스밀리터리 검정 3단우산", "expected": "F2026083100002412", "type": "brand_syn", "note": "검은색 3단우산 (swiss military)" },
+    { "id": "q28", "query": "로데 케이스 낀 핑크 아이폰", "expected": "F2026083100003008", "type": "typo", "note": "아이폰 (rhode 케이스), 립밤 — rhode→로데 오타+서술" },
+    { "id": "q29", "query": "회색 안경", "expected": "F2026083100002185", "type": "color_cat", "note": "회색 안경(LITEN PATENTHINGE edition)" }
+  ]
+}

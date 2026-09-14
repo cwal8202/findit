@@ -1,0 +1,59 @@
+{
+  "settings": {
+    "index": {
+      "knn": true,
+      "number_of_shards": 1,
+      "number_of_replicas": 0
+    },
+    "analysis": {
+      "tokenizer": {
+        "nori_mixed": {
+          "type": "nori_tokenizer",
+          "decompound_mode": "mixed"
+        }
+      },
+      "analyzer": {
+        "korean_nori": {
+          "type": "custom",
+          "tokenizer": "nori_mixed",
+          "filter": ["nori_part_of_speech", "nori_readingform", "lowercase"]
+        }
+      }
+    }
+  },
+  "mappings": {
+    "properties": {
+      "atc_id": { "type": "keyword" },
+      "fd_sn": { "type": "keyword" },
+      "source": { "type": "keyword" },
+
+      "name": { "type": "text", "analyzer": "korean_nori" },
+      "description": { "type": "text", "analyzer": "korean_nori" },
+      "subject": { "type": "text", "analyzer": "korean_nori" },
+
+      "category": { "type": "text", "analyzer": "korean_nori" },
+      "category_top": { "type": "keyword" },
+      "category_sub": { "type": "keyword" },
+
+      "color": { "type": "keyword" },
+      "found_place": { "type": "keyword" },
+      "dep_place": { "type": "keyword" },
+
+      "image_url": { "type": "keyword", "index": false },
+      "found_at": {
+        "type": "date",
+        "format": "yyyy-MM-dd||yyyy-MM-dd HH:mm:ss||epoch_millis"
+      },
+
+      "embedding": {
+        "type": "knn_vector",
+        "dimension": 768,
+        "method": {
+          "name": "hnsw",
+          "space_type": "cosinesimil",
+          "engine": "lucene"
+        }
+      }
+    }
+  }
+}

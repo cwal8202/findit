@@ -1,0 +1,13 @@
+# secrets
+.env
+*.http
+
+# python
+__pycache__/
+*.pyc
+.venv/
+.ruff_cache/
+.pytest_cache/
+
+# eval caches (재생성 가능)
+eval/data/emb_cache.json

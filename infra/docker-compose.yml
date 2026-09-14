@@ -1,0 +1,33 @@
+# FindIt 로컬 개발용 OpenSearch (단일 노드)
+# 실행:  docker compose -f infra/docker-compose.yml up -d --build
+# 중지:  docker compose -f infra/docker-compose.yml down
+# 로컬 개발 편의를 위해 security 플러그인 비활성화 → http://localhost:9200 로 인증 없이 접근.
+services:
+  opensearch:
+    build: ./opensearch
+    image: findit/opensearch-nori:2.17.1
+    container_name: findit-opensearch
+    environment:
+      - discovery.type=single-node
+      - DISABLE_SECURITY_PLUGIN=true
+      - bootstrap.memory_lock=true
+      - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    ports:
+      - "9200:9200"
+    volumes:
+      - findit-os-data:/usr/share/opensearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+volumes:
+  findit-os-data:
