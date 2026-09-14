@@ -9,5 +9,5 @@ __pycache__/
 .ruff_cache/
 .pytest_cache/
 
-# eval caches (재생성 가능)
-eval/data/emb_cache.json
+# 임베딩 캐시는 포함(재임베딩·과금 방지, 다른 환경 이식성). 키·개인정보 없음.
+# eval/data/emb_cache.json  ← 의도적으로 커밋함

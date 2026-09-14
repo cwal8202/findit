@@ -14,6 +14,31 @@
 
 ---
 
+## ▶ 새 세션에서 이어서 시작하기 (인수인계)
+
+> 다른 Claude Code 세션/계정/컴퓨터에서 이어갈 때 이 순서대로.
+
+1. **이 문서 + [`README.md`](../README.md) 먼저 읽기** — 무엇을·왜·어떤 결과로 결정했는지 전부 여기 있음.
+2. **환경 준비**: Docker Desktop 실행, `.env` 작성(`.env.example` 참고 — Gemini·공공API 키).
+3. **OpenSearch 기동**
+   - 이미 만든 적 있으면: `docker compose -f infra/docker-compose.yml start`
+   - 처음이면: `docker compose -f infra/docker-compose.yml up -d --build`
+4. **인덱스 없으면 재생성 + 색인** (임베딩은 `eval/data/emb_cache.json` 재사용 → 재임베딩·과금 없음):
+   ```bash
+   curl -X PUT localhost:9200/found_items -H "Content-Type: application/json" \
+     --data-binary @infra/opensearch/mappings/found_items.json
+   python eval/index_opensearch.py
+   ```
+   (색인 확인: `curl localhost:9200/found_items/_count`)
+5. **동작 확인**: `python eval/run_os.py` (성능) / `python eval/search_demo.py "자유 문장"` (검색).
+6. **다음 작업 후보** (7절 로드맵): **가점(boosting)** 추가 → **LLM grading** → **앱 스캐폴딩**.
+   현재 추천 순서는 가점(무료·즉효) → LLM grading(정밀도) → 앱.
+
+**주의**: `.env`(키)는 git에 없음(같은 컴퓨터엔 로컬에 존재). 다른 컴퓨터면 `.env` 새로 작성 필요.
+결제(Gemini 종량제) 활성화 상태 → rate limit 없음. 임베딩 캐시가 저장소에 포함되어 재임베딩 불필요.
+
+---
+
 ## 1. 확정된 설계 결정 (근거 포함)
 
 ### 1-1. 검색은 "2-레인" 구조, 병합(融合) 안 함
