@@ -1,0 +1,33 @@
+{
+  "description": "가점(특히 지역) 효과 측정용 hard 골든셋. 밀집 군집(검정지갑 193 / 흰이어폰)에서 임베딩만으론 깊이 묻히는 정답을, 지역집합+시간으로 tie-break. query는 일부러 generic(브랜드 토큰 없음). region_set은 넓은 구/시 집합(교통노선 경유 구역 가정, 하드필터 아님).",
+  "cases": [
+    { "id": "h01", "query": "검정색 지갑을 잃어버렸어요", "expected": "F2026083100003236",
+      "region_set": ["순천", "광양", "여수", "곡성", "보성"], "loss_date": "2026-08-20",
+      "cat_hint": "지갑", "color_hint": "검정",
+      "note": "순천 기차노선 경유구역. 임베딩 base rank~17" },
+    { "id": "h02", "query": "검정색 지갑을 잃어버렸어요", "expected": "F2026083100003960",
+      "region_set": ["오산", "수원", "화성", "평택", "안성"], "loss_date": "2026-08-25",
+      "cat_hint": "지갑", "color_hint": "검정",
+      "note": "오산~수원 경기남부. base rank~14" },
+    { "id": "h03", "query": "검정색 지갑을 잃어버렸어요", "expected": "F2026083100003829",
+      "region_set": ["마포", "서대문", "용산", "은평"], "loss_date": "2026-08-28",
+      "cat_hint": "지갑", "color_hint": "검정",
+      "note": "서울 서북부. base rank~16" },
+    { "id": "h04", "query": "검정색 지갑을 잃어버렸어요", "expected": "F2026083100002063",
+      "region_set": ["익산", "전주", "군산", "김제"], "loss_date": "2026-08-20",
+      "cat_hint": "지갑", "color_hint": "검정",
+      "note": "전북. base rank~24 (깊이 묻힘)" },
+    { "id": "h05", "query": "검정색 지갑을 잃어버렸어요", "expected": "F2026083100003334",
+      "region_set": ["관악", "동작", "금천"], "loss_date": "2026-08-29",
+      "cat_hint": "지갑", "color_hint": "검정",
+      "note": "서울 남부. base rank~12" },
+    { "id": "h06", "query": "흰색 무선 이어폰을 잃어버렸어요", "expected": "F2026083100002738",
+      "region_set": ["구로", "영등포", "금천", "양천"], "loss_date": "2026-08-15",
+      "cat_hint": "이어폰", "color_hint": "화이트",
+      "note": "서울 구로. base rank~8" },
+    { "id": "h07", "query": "흰색 무선 이어폰을 잃어버렸어요", "expected": "F2026083100003090",
+      "region_set": ["대구"], "loss_date": "2026-08-20",
+      "cat_hint": "이어폰", "color_hint": "화이트",
+      "note": "대구 중구. base rank~7" }
+  ]
+}
