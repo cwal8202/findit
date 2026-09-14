@@ -371,6 +371,32 @@ GRADE  0.897  1.000  1.000  0.943   (q13 프라다 4→3위, 악화 0건)
 - **의미 있는 임계값은 코사인이 아니라 LLM grade 점수(0~100)에 건다** — grade는 보정된 "판단"이라 컷값이 성립.
   이 컷값은 향후 "정답없음" 테스트로 잡음.
 
+### ⭐ 앱 스캐폴딩 — 검증된 두뇌 → FastAPI 서비스 (2026-09-15)
+
+eval 실험 로직을 실제 HTTP 서비스로. 로드맵 1단계(검색 코어 API) 착수.
+
+**셋업**: `pyproject.toml`(uv) + `.venv`. 의존성 최소(fastapi/uvicorn/pydantic/pydantic-settings),
+HTTP 호출은 eval처럼 urllib(stdlib) — Gemini·OpenSearch 클라이언트 SDK 안 씀.
+
+**구조** `apps/api/`:
+- `config.py` — pydantic-settings로 `.env` 로드(시크릿 코드에 없음).
+- `region.py` — dep→구/시 해석기(gazetteer 4단계 + 지오코딩 캐시, 런타임 API 호출 없음).
+- `gemini.py` — 질의 임베딩 + LLM grading(urllib).
+- `search.py` — 파이프라인: 임베딩 → OpenSearch KNN(k=candidates) → 지역/시간 soft 가점(기본 w_region=0.05) → (선택)grading 재정렬.
+- `models.py` / `main.py` — `FoundItem` 스키마 + `GET /found-items/search`.
+
+**엔드포인트**: `GET /found-items/search?q=&region=&lost_date=&grade=&size=&w_region=`
+- `q` 자연어 분실 설명, `region` 쉼표구분 구/시 집합(넓게), `grade=true`면 LLM 판정+근거.
+
+**실동작 확인 (OpenSearch 2.17.1 nori+KNN, found_items 2000건)**:
+- 의미검색: "지하철에 두고 내린 흰색 무선이어폰" → 흰 무선이어폰 상위.
+- 지역가점: `region=순천,광양,여수,곡성,보성` → 전남(순천·여수) 검정지갑이 상위로(가점 전엔 서울·제주 랜덤).
+- grading: "닥스 검정 남성 반지갑" `grade=true` → DAKS검정반지갑 98 / DAKS지갑 85 + 근거.
+
+**실행**: `docker compose -f infra/docker-compose.yml up -d` → `uv run uvicorn apps.api.main:app --reload` → http://localhost:8000/docs
+
+**남은 일**: 데이터 위치 공용화(현재 gazetteer가 eval/data 참조) / pytest / 분실물 등록 + 에이전트(LangGraph) / 수집기.
+
 ### ⚠ 반복 병목: Gemini 무료 임베딩 쿼터 (개발 루프 차단)
 
 - 이번 세션에서 임베딩 대량/자유질의 시 **5회 이상 429 RESOURCE_EXHAUSTED**. 소량 버스트만 허용, 회복에 10~15분.
