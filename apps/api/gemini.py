@@ -54,6 +54,24 @@ def embed_query(text: str) -> list[float]:
     return [x / n for x in v]
 
 
+def embed_texts(texts: list[str], chunk: int = 50) -> list[list[float]]:
+    """여러 문서를 배치 임베딩(정규화). 수집기 색인용. batchEmbedContents 청크."""
+    out: list[list[float]] = []
+    for i in range(0, len(texts), chunk):
+        part = texts[i : i + chunk]
+        url = f"{_BASE}/{settings.gemini_embed_model}:batchEmbedContents?key={settings.gemini_api_key}"
+        body = {"requests": [{
+            "model": f"models/{settings.gemini_embed_model}",
+            "content": {"parts": [{"text": t}]},
+            "outputDimensionality": settings.gemini_embed_dim,
+        } for t in part]}
+        for e in _post(url, body, timeout=120)["embeddings"]:
+            v = e["values"]
+            n = math.sqrt(sum(x * x for x in v)) or 1.0
+            out.append([x / n for x in v])
+    return out
+
+
 def grade(query: str, candidates: list[dict]) -> list[dict]:
     """top-K 후보를 채점. 반환: [{"id":n, "score":0~100, "reason":".."}]. 실패 시 []."""
     lines = "\n".join(

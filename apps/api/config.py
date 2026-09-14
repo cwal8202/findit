@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     gemini_embed_dim: int = 768
     gemini_grade_model: str = "gemini-3.6-flash"  # 2.5-flash는 신규차단(404) → 3.6-flash
     kakao_rest_api_key: str = ""
+    data_go_kr_service_key_decoded: str = ""  # 경찰청 습득물 API (디코딩 키)
 
     opensearch_url: str = "http://localhost:9200"
     opensearch_index: str = "found_items"

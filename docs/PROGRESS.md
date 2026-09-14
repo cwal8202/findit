@@ -397,6 +397,31 @@ HTTP 호출은 eval처럼 urllib(stdlib) — Gemini·OpenSearch 클라이언트 
 
 **남은 일**: 데이터 위치 공용화(현재 gazetteer가 eval/data 참조) / pytest / 분실물 등록 + 에이전트(LangGraph) / 수집기.
 
+### ⭐ 수집기(collector) — 실 API → 색인 (2026-09-15)
+
+**설계**: 스케줄과 무관한 멱등 CLI. "언제 돌릴지"는 외부 스케줄러(작업 스케줄러/cron/클라우드 cron)가 결정.
+문서 _id = atcId_fdSn 라 재실행은 upsert(중복 없음).
+
+**구조** `apps/collector/`:
+- `client.py` — data.go.kr 경찰청+포털 API(XML). 목록 페이징 + 상세 enrich. serviceKey=.env 디코딩키.
+- `normalize.py` — 목록+상세 → 색인 문서(스키마 일치). 임베딩 텍스트는 기존 색인과 동일 공식(name+분류+색상)로 일관성.
+- `run.py` — CLI: 목록 페이징 → (선택)상세 enrich → 임베딩(Gemini batch) → OpenSearch `_bulk` upsert → refresh.
+  플래그: `--source police|portal|both --start --end --rows --max --enrich --no-embed --dry-run`.
+
+**핵심**: 목록엔 습득장소·특이사항 없음 → `--enrich`가 상세 호출로 **fdPlace(습득장소)·uniq(특이사항)** 채움(항목당 1콜).
+`--max`로 비용/일한도(10만/일) 보호.
+
+**실동작 확인**: 경찰청 2026-09-13 3건 수집 → enrich(습득장소=노상, 특이사항) → 임베딩 → 색인 0오류
+→ 인덱스 2000→2003, 신규 항목 조회됨(애플워치 등).
+
+**실행**:
+```
+uv run python -m apps.collector.run --source both --start 20260901 --end 20260901 --max 200 --enrich
+```
+**스케줄링(나중)**: 위 명령을 작업 스케줄러/cron으로 "매일 새벽" 등 원하는 주기·시각에. 수집기 자체엔 시간 로직 없음.
+
+**남은 일**: 임베딩 캐시/중복 embed 방지(이미 색인된 건 skip) / description(uniq) 포함 임베딩으로 품질↑(전체 재색인 필요) / 증분 수집(마지막 수집일 이후).
+
 ### ⚠ 반복 병목: Gemini 무료 임베딩 쿼터 (개발 루프 차단)
 
 - 이번 세션에서 임베딩 대량/자유질의 시 **5회 이상 429 RESOURCE_EXHAUSTED**. 소량 버스트만 허용, 회복에 10~15분.
