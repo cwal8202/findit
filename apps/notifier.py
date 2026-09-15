@@ -6,7 +6,19 @@
 
 from __future__ import annotations
 
+import sys
 from typing import Protocol
+
+
+def _emit(msg: str) -> None:
+    """콘솔 인코딩(Windows cp949 등)이 이모지를 못 찍어도 요청을 죽이지 않도록 안전 출력."""
+    try:
+        print(msg, flush=True)
+    except UnicodeEncodeError:
+        buf = getattr(sys.stdout, "buffer", None)
+        if buf is not None:
+            buf.write((msg + "\n").encode("utf-8", "replace"))
+            buf.flush()
 
 
 class Notifier(Protocol):
@@ -20,7 +32,7 @@ class ConsoleNotifier:
     def notify(self, lost: dict, match: dict) -> None:
         who = lost.get("user_id", "anon")
         text = (lost.get("text") or "")[:30]
-        print(
+        _emit(
             f"🔔 [알림→{who}] 분실물 '{text}' 매칭!\n"
             f"    → {match.get('name')}/{match.get('color')} "
             f"(grade {match.get('grade')}) | 보관:{match.get('dep_place')} "

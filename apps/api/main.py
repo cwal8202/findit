@@ -6,7 +6,10 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from fastapi import FastAPI, HTTPException, Query
+from fastapi.responses import FileResponse
 
 from apps import store
 
@@ -17,6 +20,14 @@ from .models import FoundItem, LostItemRequest, MatchResponse, SearchResponse
 app = FastAPI(title="FindIt API", version="0.1.0",
               description="분실물 자연어 질의 → 습득물 하이브리드 검색 + 지역 가점 + LLM grading")
 store.init()  # 분실물 테이블 생성(멱등)
+
+
+_WEB = Path(__file__).resolve().parents[2] / "apps" / "web" / "index.html"
+
+
+@app.get("/", include_in_schema=False)
+def index() -> FileResponse:
+    return FileResponse(_WEB)
 
 
 @app.get("/health")

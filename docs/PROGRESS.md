@@ -482,6 +482,22 @@ lost_items(id, user_id, text, extracted, region_set, queries, status, best_match
 
 **남은 일**: KakaoNotifier(카카오 알림톡) / 알림 이력 테이블 / 연락처(orgNm·tel)도 색인·알림에 포함.
 
+### ⭐ 웹 화면 (2026-09-15)
+
+지금까지 API·CLI뿐이라 눈에 보이는 게 없었음 → **FastAPI가 서빙하는 단일 페이지**(바닐라 JS, 빌드도구 X).
+같은 오리진이라 CORS 불필요. `apps/web/index.html`, `GET /`에서 `FileResponse`로 서빙.
+
+**화면**: 분실물 등록(자연어 + 분실일) → 매칭 결과(추출 칩·검색 지역 칩·후보 쿼리·grade별 색상 뱃지 카드+근거·
+matched/open 배너) → 내 신고 목록(상태 뱃지). 로딩 스피너·안내문 포함.
+
+**실동작(브라우저)**: "지하철에서 흰색 삼성 갤럭시 무선이어폰..." → 지역 20개 구 확장 → 삼성무선이어폰 95점(근거),
+무선이어폰 60점. matched 배너 + 목록 갱신.
+
+**버그픽스**: ConsoleNotifier가 `🔔` 이모지 출력 시 Windows 콘솔(cp949)에서 UnicodeEncodeError로 500 →
+`_emit()` 안전 출력(실패 시 stdout.buffer utf-8)로 요청이 안 죽게. 서버는 PYTHONUTF8=1 권장.
+
+**남은 일**: 신고 상세/취소, 사용자 인증(user_id), 브라우저 확장(MV3), 반응형 다듬기, 실시간 알림 표시.
+
 ### ⚠ 반복 병목: Gemini 무료 임베딩 쿼터 (개발 루프 차단)
 
 - 이번 세션에서 임베딩 대량/자유질의 시 **5회 이상 429 RESOURCE_EXHAUSTED**. 소량 버스트만 허용, 회복에 10~15분.
