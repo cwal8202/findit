@@ -469,6 +469,19 @@ lost_items(id, user_id, text, extracted, region_set, queries, status, best_match
 **남은 일**: 알림(Notifier→콘솔→카카오) 연결 / 중복 알림 방지·이력 / PostgreSQL 이전 / user_id(인증) /
 쿼리 임베딩 캐시로 재매칭 더 저렴하게 / 스케줄러가 수집→재매칭 정기 실행.
 
+### 알림(Notifier) — 채널 독립 (2026-09-15)
+
+헌장대로 **알림은 인터페이스로만**. `apps/notifier.py`: `Notifier` Protocol + `ConsoleNotifier`(v1 로그).
+주입 지점 `notifier` — 추후 KakaoNotifier 등으로 교체(코어 무변경). 공식 신고 제출은 별도 HITL(여기선 통보만).
+
+**연결**: 매칭 성립(matched 전환) 지점 두 곳에서 `notifier.notify(lost, match)` —
+(1) `POST /lost-items` 등록 즉시 매칭, (2) `rematch_open()` 재매칭 성립. 중복 방지는 status 전환으로
+자연 처리(matched는 open 풀에서 빠져 재알림 없음).
+
+**실동작**: "라도 손목시계" 등록 → matched(95) → `🔔 [알림→anon] ... RADO 손목시계, 보관:정관아쿠아드림파크, 부산 기장군`.
+
+**남은 일**: KakaoNotifier(카카오 알림톡) / 알림 이력 테이블 / 연락처(orgNm·tel)도 색인·알림에 포함.
+
 ### ⚠ 반복 병목: Gemini 무료 임베딩 쿼터 (개발 루프 차단)
 
 - 이번 세션에서 임베딩 대량/자유질의 시 **5회 이상 429 RESOURCE_EXHAUSTED**. 소량 버스트만 허용, 회복에 10~15분.
