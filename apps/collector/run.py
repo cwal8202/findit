@@ -75,6 +75,7 @@ def main() -> None:
     ap.add_argument("--enrich", action="store_true", help="상세 호출로 습득장소·특이사항 채움(항목당 1콜)")
     ap.add_argument("--no-embed", action="store_true", help="임베딩·색인 생략(정규화까지만)")
     ap.add_argument("--dry-run", action="store_true", help="색인 안 함, 샘플만 출력")
+    ap.add_argument("--rematch", action="store_true", help="색인 후 open 분실물 지속 재매칭 실행")
     args = ap.parse_args()
 
     sources = ["police", "portal"] if args.source == "both" else [args.source]
@@ -106,6 +107,11 @@ def main() -> None:
     cnt = json.load(urllib.request.urlopen(
         f"{settings.opensearch_url}/{settings.opensearch_index}/_count", timeout=15))["count"]
     print(f"  현재 인덱스 총 문서: {cnt}")
+
+    if args.rematch:  # 새 습득물 유입 → 저장된 미해결 분실물 재매칭
+        print("\n지속 재매칭...")
+        from apps.agent.rematch import rematch_open
+        rematch_open()
 
 
 if __name__ == "__main__":

@@ -447,6 +447,28 @@ extract → route → fanout → search(병합) → grade
 **남은 일(에이전트)**: DB 저장(PostgreSQL) + 신규 습득물 유입 시 **지속 재매칭** / grade 낮으면 fan-out 확장 재검색(분기·루프) /
 RouteResolver를 실제 노선 API로 / HITL(지역집합 사용자 확인) / 알림 연결.
 
+### ⭐ 분실물 DB + 지속 재매칭 (2026-09-15)
+
+**"1회성 → 계속 지켜봄"**: 에이전트가 등록 즉시 매칭하고 끝나던 것을, 신고를 저장하고 새 습득물이
+들어올 때마다 재매칭하도록. 분실물은 보통 나중에 발견됨 → 접수해두고 유입마다 대조하는 게 핵심.
+
+**저장소** (린 v1: SQLite stdlib, 추후 PostgreSQL): `apps/store.py`, `data/findit.db`(개인정보 → gitignore).
+lost_items(id, user_id, text, extracted, region_set, queries, status, best_match, best_grade, ...).
+
+**흐름**:
+- `POST /lost-items` — 에이전트 매칭 + **저장**. 최고 grade ≥ 임계(기본 80)면 status=matched, 아니면 open.
+- `apps/agent/rematch.py` — open 항목을 현재 인덱스와 재매칭. 저장된 추출·지역집합·쿼리 재사용
+  (`graph.match_stored`: LLM 추출/라우팅 재호출 없이 검색+grade만 → 저렴). 임계 넘으면 matched + 알림 대상 반환.
+- `수집기 --rematch` — 색인 후 자동으로 `rematch_open()` 호출(수집→재매칭 루프).
+- 조회: `GET /lost-items`, `GET /lost-items/{id}`.
+
+**실동작(통제 시연)**: 애플워치를 인덱스에서 삭제 → "애플워치 잃어버렸어요" 신고 = **open(grade 65)** →
+수집기가 애플워치 재색인 `--rematch` → **자동 matched(grade 80, "알림 대상")**. 페라리 미니카(코퍼스에 없음)는 open 유지.
+→ **등록 시 없던 매칭이 습득물 유입 후 자동 성립**. 알림(Notifier)과 연결될 seam("알림 대상") 확보.
+
+**남은 일**: 알림(Notifier→콘솔→카카오) 연결 / 중복 알림 방지·이력 / PostgreSQL 이전 / user_id(인증) /
+쿼리 임베딩 캐시로 재매칭 더 저렴하게 / 스케줄러가 수집→재매칭 정기 실행.
+
 ### ⚠ 반복 병목: Gemini 무료 임베딩 쿼터 (개발 루프 차단)
 
 - 이번 세션에서 임베딩 대량/자유질의 시 **5회 이상 429 RESOURCE_EXHAUSTED**. 소량 버스트만 허용, 회복에 10~15분.

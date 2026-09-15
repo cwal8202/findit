@@ -11,3 +11,7 @@ __pycache__/
 
 # 임베딩 캐시는 포함(재임베딩·과금 방지, 다른 환경 이식성). 키·개인정보 없음.
 # eval/data/emb_cache.json  ← 의도적으로 커밋함
+
+# 런타임 상태(분실물 DB 등) — 개인정보 포함, 커밋 금지
+data/*.db
+data/*.db-journal

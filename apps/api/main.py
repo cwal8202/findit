@@ -6,7 +6,9 @@
 
 from __future__ import annotations
 
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, HTTPException, Query
+
+from apps import store
 
 from . import search as search_mod
 from .config import settings
@@ -14,6 +16,7 @@ from .models import FoundItem, LostItemRequest, MatchResponse, SearchResponse
 
 app = FastAPI(title="FindIt API", version="0.1.0",
               description="분실물 자연어 질의 → 습득물 하이브리드 검색 + 지역 가점 + LLM grading")
+store.init()  # 분실물 테이블 생성(멱등)
 
 
 @app.get("/health")
@@ -52,12 +55,34 @@ def register_lost_item(req: LostItemRequest) -> MatchResponse:
     from apps.agent import graph as agent_graph
 
     result = agent_graph.run(req.text, req.lost_date)
-    matches = [FoundItem(**m) for m in result.get("matches", [])]
+    raw_matches = result.get("matches", [])
+    top = raw_matches[0] if raw_matches else None
+    best_grade = top.get("grade") if top else None
+    status = "matched" if (best_grade or 0) >= settings.rematch_grade_threshold else "open"
+
+    lid = store.add(
+        req.text, result.get("extracted", {}), result.get("region_set", []),
+        result.get("queries", []), top, best_grade, status=status,
+    )
     return MatchResponse(
-        query=req.text,
+        id=lid, status=status, query=req.text,
         extracted=result.get("extracted", {}),
         region_set=result.get("region_set", []),
         queries=result.get("queries", []),
-        count=len(matches),
-        matches=matches,
+        count=len(raw_matches),
+        matches=[FoundItem(**m) for m in raw_matches],
     )
+
+
+@app.get("/lost-items")
+def list_lost_items() -> list[dict]:
+    """등록된 분실물 신고 목록(상태 포함). open=찾는중, matched=매칭됨."""
+    return store.all_items()
+
+
+@app.get("/lost-items/{lid}")
+def get_lost_item(lid: str) -> dict:
+    item = store.get(lid)
+    if not item:
+        raise HTTPException(status_code=404, detail="해당 분실물 신고 없음")
+    return item

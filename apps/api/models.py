@@ -37,6 +37,8 @@ class LostItemRequest(BaseModel):
 
 class MatchResponse(BaseModel):
     """에이전트 매칭 결과 — 추출·지역집합·fan-out 쿼리까지 투명하게 노출."""
+    id: str = ""                    # 저장된 분실물 id
+    status: str = "open"            # open | matched
     query: str
     extracted: dict = {}
     region_set: list[str] = []
