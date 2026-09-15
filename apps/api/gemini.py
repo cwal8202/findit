@@ -54,6 +54,20 @@ def embed_query(text: str) -> list[float]:
     return [x / n for x in v]
 
 
+def generate_json(prompt: str, timeout: int = 60):
+    """gemini-3.6-flash로 JSON 응답 생성(추출·라우팅 등 재사용). 실패 시 None."""
+    url = f"{_BASE}/{settings.gemini_grade_model}:generateContent?key={settings.gemini_api_key}"
+    body = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {"responseMimeType": "application/json", "temperature": 0},
+    }
+    try:
+        text = _post(url, body, timeout)["candidates"][0]["content"]["parts"][0]["text"]
+        return json.loads(text)
+    except (KeyError, IndexError, json.JSONDecodeError, urllib.error.URLError):
+        return None
+
+
 def embed_texts(texts: list[str], chunk: int = 50) -> list[list[float]]:
     """여러 문서를 배치 임베딩(정규화). 수집기 색인용. batchEmbedContents 청크."""
     out: list[list[float]] = []

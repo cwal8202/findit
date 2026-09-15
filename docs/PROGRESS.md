@@ -422,6 +422,31 @@ uv run python -m apps.collector.run --source both --start 20260901 --end 2026090
 
 **남은 일**: 임베딩 캐시/중복 embed 방지(이미 색인된 건 skip) / description(uniq) 포함 임베딩으로 품질↑(전체 재색인 필요) / 증분 수집(마지막 수집일 이후).
 
+### ⭐ 매칭 에이전트 (LangGraph) 린 v1 (2026-09-15)
+
+**"부품 → 오케스트레이션"**: 검색·가점·grading·수집기를 에이전트가 엮어 *자연어 신고 한 줄 → 매칭*.
+
+**구조** `apps/agent/` (LangGraph StateGraph, 노드는 평범한 함수):
+```
+extract → route → fanout → search(병합) → grade
+```
+- `extract.py` — 신고 자연어 → {item,brand,color,category,place_context,lost_date,features}. 상대날짜("어제")를 오늘 기준 환산.
+- `route.py` — **RouteResolver 인터페이스** + LLM지식 스텁. 장소맥락 → 경유 구/시 집합. **노선 API 없이** 동작
+  (Gemini가 "2호선 경유 구"를 나열). 추후 지하철/버스/기차 노선 API를 같은 인터페이스에 주입(에이전트 무변경).
+- `fanout.py` — 구조화 → 넓게~좁게 쿼리(규칙기반): "닥스 검정 지갑"→"검정 지갑"→"지갑".
+- `graph.py` — 각 쿼리를 검색+지역가점(기존 파이프라인) → atcId로 병합·dedup → merged top-K를 grading.
+- 프롬프트는 `apps/agent/prompts/{extract,route}.txt` (파일 분리).
+
+**API**: `POST /lost-items {text, lost_date?}` → 추출·지역집합·fan-out·매칭을 투명하게 반환.
+
+**실동작**: "어제 2호선 지하철에서 검정 닥스 지갑..." →
+- 추출: 닥스/검정/지갑, "어제"→2026-09-14, 장소=2호선 지하철.
+- 지역집합: LLM이 2호선 경유 ~19개 구 나열(강남·서초·송파·성동·마포·강서...).
+- 매칭: **DAKS검정반지갑 grade=95**(강서구=2호선 구간→지역가점까지), 일반 검정지갑 50~60으로 구별.
+
+**남은 일(에이전트)**: DB 저장(PostgreSQL) + 신규 습득물 유입 시 **지속 재매칭** / grade 낮으면 fan-out 확장 재검색(분기·루프) /
+RouteResolver를 실제 노선 API로 / HITL(지역집합 사용자 확인) / 알림 연결.
+
 ### ⚠ 반복 병목: Gemini 무료 임베딩 쿼터 (개발 루프 차단)
 
 - 이번 세션에서 임베딩 대량/자유질의 시 **5회 이상 429 RESOURCE_EXHAUSTED**. 소량 버스트만 허용, 회복에 10~15분.

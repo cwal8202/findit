@@ -10,7 +10,7 @@ from fastapi import FastAPI, Query
 
 from . import search as search_mod
 from .config import settings
-from .models import FoundItem, SearchResponse
+from .models import FoundItem, LostItemRequest, MatchResponse, SearchResponse
 
 app = FastAPI(title="FindIt API", version="0.1.0",
               description="분실물 자연어 질의 → 습득물 하이브리드 검색 + 지역 가점 + LLM grading")
@@ -40,4 +40,24 @@ def search_found_items(
     return SearchResponse(
         query=q, count=len(items), region_set=region_set, graded=grade,
         results=[FoundItem(**it) for it in items],
+    )
+
+
+@app.post("/lost-items", response_model=MatchResponse)
+def register_lost_item(req: LostItemRequest) -> MatchResponse:
+    """분실물 자연어 신고 → 매칭 에이전트(추출→라우팅→fan-out→검색→grading) → 매칭 결과.
+
+    v1: stateless(등록 즉시 매칭). 추후 DB 저장 + 신규 습득물 유입 시 지속 재매칭.
+    """
+    from apps.agent import graph as agent_graph
+
+    result = agent_graph.run(req.text, req.lost_date)
+    matches = [FoundItem(**m) for m in result.get("matches", [])]
+    return MatchResponse(
+        query=req.text,
+        extracted=result.get("extracted", {}),
+        region_set=result.get("region_set", []),
+        queries=result.get("queries", []),
+        count=len(matches),
+        matches=matches,
     )

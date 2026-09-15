@@ -24,7 +24,10 @@
 → **결론: 의미 임베딩이 주력 랭커.** 한글↔영문 브랜드(닥스↔DAKS), 번역(대한항공↔KOREAN AIR),
 오타까지 커버. 하이브리드 반반은 오히려 손해(가중치는 튜닝 대상).
 
-**⏳ 미구현**: 사용자 앱/화면, 매일 자동 수집(collector), 카카오 알림, LLM grading, 가점(boosting).
+**✅ 추가 완료**: 지역 가점(boosting, eval 검증) · dep→구/시 gazetteer+지오코딩(95%) · LLM grading ·
+검색 API(FastAPI+OpenSearch) · 수집기(data.go.kr→enrich→색인) · **매칭 에이전트(LangGraph): 자연어 신고→매칭**.
+
+**⏳ 미구현**: 사용자 앱/화면(web/extension) · 카카오 알림 · 분실물 DB 저장+지속 재매칭 · 수집 스케줄 자동화 · 이미지 레인.
 
 ---
 
@@ -47,8 +50,11 @@ eval/        골든셋 + 성능 실험 (BM25/임베딩/하이브리드/스윕, O
 infra/       docker-compose + OpenSearch(nori) Dockerfile + 인덱스 매핑
 fixtures/    공공 API 실응답 샘플 (진실의 원천)
 docs/        PROGRESS.md (설계·실험 기록)
+apps/api/       FastAPI 검색·매칭 엔드포인트 (GET /found-items/search, POST /lost-items)
+apps/agent/     매칭 에이전트 (LangGraph: extract→route→fanout→search→grade)
+apps/collector/ 수집기 (data.go.kr 습득물 → 상세 enrich → 임베딩 → 색인)
 ```
-> `apps/{api,agent,collector,web,extension}`는 앱 구현 단계에서 추가 예정.
+> `apps/{web,extension}`(프론트/확장)는 다음 단계 예정.
 
 ## 실행
 

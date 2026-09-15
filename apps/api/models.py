@@ -28,3 +28,18 @@ class SearchResponse(BaseModel):
     region_set: list[str] = []
     graded: bool = False
     results: list[FoundItem]
+
+
+class LostItemRequest(BaseModel):
+    text: str                       # 자연어 분실 신고
+    lost_date: str | None = None    # 명시하면 우선(없으면 LLM이 문장에서 환산)
+
+
+class MatchResponse(BaseModel):
+    """에이전트 매칭 결과 — 추출·지역집합·fan-out 쿼리까지 투명하게 노출."""
+    query: str
+    extracted: dict = {}
+    region_set: list[str] = []
+    queries: list[str] = []
+    count: int = 0
+    matches: list[FoundItem] = []
