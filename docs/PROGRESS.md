@@ -2,15 +2,18 @@
 
 > 분실물 매칭 AI 에이전트. 자연어로 분실물을 등록하면 경찰청·포털기관 습득물 데이터를
 > 수집해 하이브리드 검색 + LLM grading으로 매칭하고 알림하는 서비스.
-> **문서 갱신일: 2026-09-02**
+> **문서 갱신일: 2026-09-15**
 
 ---
 
 ## 0. 한눈에 보기
 
-- **현재 국면**: 인프라 착수 전, **공공 API 탐색 + 데이터 확보 + 핵심 설계 결정** 단계
-- **다음 액션**: `eval/` 오프라인 성능 실험(골든셋 + baseline 채점) — 인프라/키 없이 매칭 품질부터 숫자로 확인
-- **4주 최우선순위**: **매칭 품질** (검색/grading/eval 레이어 우선)
+- **현재 국면**: **전체 파이프라인 동작**(수집→색인→검색+지역가점→grading→에이전트→DB→지속 재매칭→알림→웹).
+  검색 품질은 eval로 검증 완료. FIND-1~9 커밋.
+- **다음 액션**: **카카오 알림톡**(현재 ConsoleNotifier → KakaoNotifier). 이후 이미지 레인 / pytest.
+- **4주 최우선순위**: **매칭 품질**(달성) → 제품화(진행 중) → 차별점(이미지)·품질(테스트).
+- **최근 실측**: 지역 가점 hard셋 MRR 0.084→0.857(덧셈 w≈0.05) / gazetteer+지오코딩 커버 95% /
+  grading 근거·신뢰도 / 에이전트 "어제 2호선 검정 닥스 지갑"→DAKS 지갑 95점 / 지속 재매칭·알림 실동작.
 
 ---
 
@@ -30,9 +33,14 @@
    python eval/index_opensearch.py
    ```
    (색인 확인: `curl localhost:9200/found_items/_count`)
-5. **동작 확인**: `python eval/run_os.py` (성능) / `python eval/search_demo.py "자유 문장"` (검색).
-6. **다음 작업 후보** (7절 로드맵): **가점(boosting)** 추가 → **LLM grading** → **앱 스캐폴딩**.
-   현재 추천 순서는 가점(무료·즉효) → LLM grading(정밀도) → 앱.
+5. **의존성**: `uv sync` (fastapi/uvicorn/langgraph 등, .venv 생성).
+6. **앱 실행 + 동작 확인**:
+   ```bash
+   uv run uvicorn apps.api.main:app --reload   # http://localhost:8000 (웹) · /docs (API)
+   # 실 데이터 갱신(선택): uv run python -m apps.collector.run --source both --start 20260901 --end 20260901 --max 200 --enrich --rematch
+   # eval: python eval/run_os.py / run_boost.py / run_grade.py
+   ```
+7. **다음 작업 후보**: **카카오 알림톡(KakaoNotifier)** → 이미지 레인 → API pytest → 스케줄 자동화.
 
 **주의**: `.env`(키)는 git에 없음(같은 컴퓨터엔 로컬에 존재). 다른 컴퓨터면 `.env` 새로 작성 필요.
 결제(Gemini 종량제) 활성화 상태 → rate limit 없음. 임베딩 캐시가 저장소에 포함되어 재임베딩 불필요.

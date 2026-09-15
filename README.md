@@ -10,24 +10,28 @@
 
 ## 현재 상태
 
-**✅ 검증된 것 — "검색 두뇌"**
-- 공공 API(경찰청·포털기관 습득물) 실응답 확보 → 정규화·색인
-- 실제 OpenSearch(nori + 768-dim KNN)에서 하이브리드 검색 동작
-- eval로 성능 실측 (골든셋 29문항):
+**✅ 동작하는 전체 파이프라인** (자연어 신고 → 매칭 → 저장 → 지속 재매칭 → 알림 → 웹)
+```
+수집기(data.go.kr) → OpenSearch 색인 → 검색+지역가점 → LLM grading → 매칭 에이전트(LangGraph)
+                                                                    ↓
+              웹 화면 ← 알림(Notifier) ← 지속 재매칭 ← 분실물 DB(SQLite)
+```
+- **검색 API**: `GET /found-items/search`, **매칭 에이전트**: `POST /lost-items`(자연어 신고 한 줄 → 매칭)
+- **웹**: `http://localhost:8000` — 등록 → 매칭 결과(근거 포함) → 내 신고 목록
+- **지속 재매칭**: 신고를 저장(open) → 새 습득물 유입마다 재매칭 → 성립 시 알림
+
+**✅ 검색 품질 실측 (eval, 골든셋 29문항)**
 
 | 방식 | R@1 | R@5 | MRR |
 |------|:---:|:---:|:---:|
 | BM25 (nori) | 0.517 | 0.793 | 0.633 |
 | **의미 임베딩 (KNN)** | **0.931** | **1.000** | **0.960** |
-| 하이브리드(0.5:0.5) | 0.759 | 0.897 | 0.821 |
 
-→ **결론: 의미 임베딩이 주력 랭커.** 한글↔영문 브랜드(닥스↔DAKS), 번역(대한항공↔KOREAN AIR),
-오타까지 커버. 하이브리드 반반은 오히려 손해(가중치는 튜닝 대상).
+→ 의미 임베딩이 주력 랭커(한글↔영문·번역·오타 커버). **지역 가점**은 밀집 군집(검정지갑 193건 등)에서
+묻힌 정답을 MRR 0.084→0.857로 끌어올림(덧셈 소프트 w≈0.05, eval 검증). dep→구/시 gazetteer+지오코딩 커버 **95%**.
 
-**✅ 추가 완료**: 지역 가점(boosting, eval 검증) · dep→구/시 gazetteer+지오코딩(95%) · LLM grading ·
-검색 API(FastAPI+OpenSearch) · 수집기(data.go.kr→enrich→색인) · **매칭 에이전트(LangGraph): 자연어 신고→매칭**.
-
-**⏳ 미구현**: 사용자 앱/화면(web/extension) · 카카오 알림 · 분실물 DB 저장+지속 재매칭 · 수집 스케줄 자동화 · 이미지 레인.
+**⏳ 남은 것**: 카카오 알림톡(현재 콘솔 알림) · 이미지 레인(사진 매칭) · 브라우저 확장 · 수집 스케줄 자동화 ·
+API 테스트(pytest) · 인증/PostgreSQL 이전.
 
 ---
 
@@ -41,7 +45,7 @@
 ## 기술 스택
 
 Python 3.12 · FastAPI · LangGraph · Gemini API(embedding·grading) ·
-OpenSearch(nori, 768-dim HNSW KNN) · PostgreSQL · React · Docker Compose · uv · ruff
+OpenSearch(nori, 768-dim HNSW KNN) · SQLite(→PostgreSQL) · 바닐라 JS 웹(→React/확장) · Docker Compose · uv · ruff
 
 ## 레포 구조
 
@@ -50,32 +54,44 @@ eval/        골든셋 + 성능 실험 (BM25/임베딩/하이브리드/스윕, O
 infra/       docker-compose + OpenSearch(nori) Dockerfile + 인덱스 매핑
 fixtures/    공공 API 실응답 샘플 (진실의 원천)
 docs/        PROGRESS.md (설계·실험 기록)
-apps/api/       FastAPI 검색·매칭 엔드포인트 (GET /found-items/search, POST /lost-items)
-apps/agent/     매칭 에이전트 (LangGraph: extract→route→fanout→search→grade)
-apps/collector/ 수집기 (data.go.kr 습득물 → 상세 enrich → 임베딩 → 색인)
+apps/api/       FastAPI 엔드포인트 (GET /found-items/search, POST /lost-items, GET /lost-items, GET /)
+apps/agent/     매칭 에이전트 (LangGraph: extract→route→fanout→search→grade) + rematch(지속 재매칭)
+apps/collector/ 수집기 (data.go.kr 습득물 → 상세 enrich → 임베딩 → 색인, --rematch)
+apps/store.py   분실물 저장소 (SQLite, 추후 PostgreSQL)
+apps/notifier.py 알림 (Notifier 인터페이스 + ConsoleNotifier, 추후 KakaoNotifier)
+apps/web/       웹 화면 (단일 페이지, FastAPI가 GET /로 서빙)
 ```
-> `apps/{web,extension}`(프론트/확장)는 다음 단계 예정.
+> `apps/extension`(브라우저 확장)은 다음 단계 예정.
 
 ## 실행
 
-**1. 사전 준비**: Docker Desktop, Python, `.env` 작성 ([`.env.example`](.env.example) 참고)
+**1. 사전 준비**: Docker Desktop, [uv](https://docs.astral.sh/uv/), `.env` 작성 ([`.env.example`](.env.example) 참고)
+```bash
+uv sync   # .venv + 의존성(fastapi/uvicorn/langgraph 등)
+```
 
-**2. OpenSearch(nori) 기동**
+**2. OpenSearch(nori) 기동 + 인덱스**
 ```bash
 docker compose -f infra/docker-compose.yml up -d --build
+curl -X PUT localhost:9200/found_items -H "Content-Type: application/json" \
+  --data-binary @infra/opensearch/mappings/found_items.json      # 최초 1회
+python eval/index_opensearch.py                                   # 캐시 임베딩으로 시드 색인(선택)
 ```
 
-**3. 인덱스 생성 + 색인 + 검색 데모**
+**3. 앱(API+웹) 실행** → 브라우저에서 http://localhost:8000
 ```bash
-# 인덱스 매핑 적용
-curl -X PUT localhost:9200/found_items -H "Content-Type: application/json" \
-  --data-binary @infra/opensearch/mappings/found_items.json
-# 캐시된 임베딩으로 색인 (재임베딩 없음)
-python eval/index_opensearch.py
-# 성능 채점 / 자유 문장 검색
-python eval/run_os.py
-python eval/search_demo.py "지하철에 흰색 무선이어폰 두고 내렸어요"
+uv run uvicorn apps.api.main:app --reload      # /docs 에 API 문서
 ```
+
+**4. 수집기 (실 데이터 갱신, 선택)** — 스케줄과 무관한 CLI. 색인 후 지속 재매칭까지:
+```bash
+uv run python -m apps.collector.run --source both --start 20260901 --end 20260901 --max 200 --enrich --rematch
+```
+
+**성능 실험(eval)**: `python eval/run_os.py`(OpenSearch 실측) · `python eval/run_boost.py`(지역 가점) ·
+`python eval/run_grade.py`(LLM grading). 상세는 [`docs/PROGRESS.md`](docs/PROGRESS.md).
+
+> Windows에서 콘솔 한글/이모지 깨짐 방지: `PYTHONUTF8=1` 권장.
 
 ---
 
