@@ -52,6 +52,10 @@
           border-top-color:transparent; border-radius:50%; animation:s .7s linear infinite;
           vertical-align:-2px; margin-right:6px; }
   @keyframes s { to { transform:rotate(360deg); } }
+  #lightbox { position:fixed; inset:0; background:rgba(0,0,0,.82); display:flex;
+              align-items:center; justify-content:center; z-index:1000; cursor:zoom-out; padding:24px; }
+  #lightbox[hidden] { display:none; }
+  #lightbox img { max-width:92vw; max-height:92vh; border-radius:12px; box-shadow:0 8px 40px rgba(0,0,0,.5); }
 </style>
 </head>
 <body>
@@ -91,6 +95,8 @@
   </div>
 </div>
 
+<div id="lightbox" hidden onclick="closeLightbox()"><img id="lightboxImg" src="" alt="" /></div>
+
 <script>
 const $ = (id) => document.getElementById(id);
 const esc = (s) => (s ?? "").toString().replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
@@ -102,12 +108,18 @@ function chips(items, cls="") {
 
 const validImg = (u) => (u && u.startsWith('http') && !u.includes('no_img')) ? u : '';
 
+function openLightbox(url){ $("lightboxImg").src = url; $("lightbox").hidden = false; }
+function closeLightbox(){ $("lightbox").hidden = true; $("lightboxImg").src = ""; }
+document.addEventListener('click', e => { const t = e.target.closest('.thumb'); if (t && t.dataset.full) openLightbox(t.dataset.full); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbox(); });
+
 function matchCard(m) {
   const g = m.grade;
   const img = validImg(m.image_url);
   const thumb = img
-    ? `<img src="${esc(img)}" alt="" referrerpolicy="no-referrer" onerror="this.style.display='none'"
-         style="width:56px;height:56px;object-fit:cover;border-radius:8px;border:1px solid var(--line);flex:0 0 56px" />`
+    ? `<img class="thumb" data-full="${esc(img)}" src="${esc(img)}" alt="" referrerpolicy="no-referrer" onerror="this.style.display='none'"
+         title="클릭하면 크게 보기"
+         style="width:56px;height:56px;object-fit:cover;border-radius:8px;border:1px solid var(--line);flex:0 0 56px;cursor:zoom-in" />`
     : '';
   return `<div class="match">
     <div class="grade" style="background:${gradeColor(g)}">${g==null?'–':g}</div>
