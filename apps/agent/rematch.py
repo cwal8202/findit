@@ -30,7 +30,7 @@ def rematch_open(verbose: bool = True) -> list[dict]:
         if top and g is not None and g >= settings.rematch_grade_threshold:
             store.update_match(row["id"], top, g, "matched")
             hits.append({"lost": row, "match": top})
-            notifier.notify(row, top)  # 채널 독립 알림(v1 콘솔 → 추후 카카오)
+            notifier.notify(row, matches)  # 채널 독립 알림(최고 매칭 + 비슷한 후보 목록)
         elif verbose:
             print(f"  · {row['id']} '{row['text'][:24]}' 최고 grade={g} (임계 미달, open 유지)")
     if verbose:
