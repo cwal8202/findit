@@ -28,6 +28,14 @@ class Settings(BaseSettings):
     db_path: Path = _ROOT / "data" / "findit.db"
     rematch_grade_threshold: int = 80  # 이 점수 이상이면 "매칭 성립"(알림 대상)
 
+    # 알림 채널: console | email  (email은 아래 SMTP 설정 필요, 미설정 시 console 폴백)
+    notifier_channel: str = "console"
+    smtp_host: str = "smtp.gmail.com"
+    smtp_port: int = 587
+    smtp_user: str = ""            # 발신 계정(Gmail 주소)
+    smtp_password: str = ""        # 앱 비밀번호(2단계 인증 후 발급)
+    notify_email_to: str = ""      # 수신 주소(미지정 시 smtp_user)
+
     # gazetteer/지오코딩 데이터 위치 (현재 eval/data 재사용 — 추후 공용 data/로 이동 예정)
     data_dir: Path = _ROOT / "eval" / "data"
 

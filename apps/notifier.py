@@ -6,8 +6,13 @@
 
 from __future__ import annotations
 
+import smtplib
 import sys
+from email.message import EmailMessage
+from email.utils import formataddr
 from typing import Protocol
+
+from apps.api.config import settings
 
 
 def _emit(msg: str) -> None:
@@ -40,5 +45,55 @@ class ConsoleNotifier:
         )
 
 
-# 주입 지점 — 나중에 KakaoNotifier 등으로 교체
-notifier: Notifier = ConsoleNotifier()
+def _match_lines(lost: dict, match: dict) -> tuple[str, str]:
+    """알림 제목·본문 생성(채널 공통)."""
+    subject = f"[FindIt] 분실물 매칭 알림 — {match.get('name')}"
+    body = (
+        f"등록하신 분실물 '{(lost.get('text') or '')[:40]}' 과(와) 일치하는 습득물을 찾았어요.\n\n"
+        f"• 물품: {match.get('name')} / {match.get('color')}\n"
+        f"• 분류: {match.get('category')}\n"
+        f"• 보관장소: {match.get('dep_place') or '-'}\n"
+        f"• 지역: {match.get('region') or '-'}\n"
+        f"• 습득일: {match.get('found_at') or '-'}\n"
+        f"• 매칭 신뢰도(grade): {match.get('grade')}\n"
+        f"• 판단 근거: {match.get('reason') or '-'}\n\n"
+        f"자세한 확인·수령 절차는 보관 기관에 문의하세요. (본 메일은 FindIt 자동 알림입니다.)"
+    )
+    return subject, body
+
+
+class EmailNotifier:
+    """SMTP 이메일 알림. 발송 실패해도 요청을 죽이지 않음(로그 후 진행)."""
+
+    def notify(self, lost: dict, match: dict) -> None:
+        to = settings.notify_email_to or settings.smtp_user
+        if not (settings.smtp_user and settings.smtp_password and to):
+            _emit("[알림] 이메일 설정 미완료(SMTP_USER/PASSWORD/NOTIFY_EMAIL_TO) → 발송 생략")
+            return
+        subject, body = _match_lines(lost, match)
+        msg = EmailMessage()
+        msg["Subject"] = subject
+        msg["From"] = formataddr(("FindIt", settings.smtp_user))
+        msg["To"] = to
+        msg.set_content(body)
+        try:
+            with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=20) as s:
+                s.starttls()
+                s.login(settings.smtp_user, settings.smtp_password)
+                s.send_message(msg)
+            _emit(f"📧 [이메일 알림→{to}] '{match.get('name')}' 매칭 발송 완료")
+        except Exception as e:  # noqa: BLE001
+            _emit(f"[알림] 이메일 발송 실패({type(e).__name__}: {e}) → 스킵")
+
+
+def get_notifier() -> Notifier:
+    """config의 notifier_channel로 알림 채널 선택. email 미설정 시 console 폴백."""
+    if settings.notifier_channel == "email":
+        if settings.smtp_user and settings.smtp_password:
+            return EmailNotifier()
+        _emit("[알림] NOTIFIER_CHANNEL=email 이지만 SMTP 미설정 → console로 폴백")
+    return ConsoleNotifier()
+
+
+# 주입 지점 — config로 채널 선택(추후 KakaoNotifier 등 추가 가능)
+notifier: Notifier = get_notifier()

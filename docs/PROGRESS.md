@@ -488,7 +488,12 @@ lost_items(id, user_id, text, extracted, region_set, queries, status, best_match
 
 **실동작**: "라도 손목시계" 등록 → matched(95) → `🔔 [알림→anon] ... RADO 손목시계, 보관:정관아쿠아드림파크, 부산 기장군`.
 
-**남은 일**: KakaoNotifier(카카오 알림톡) / 알림 이력 테이블 / 연락처(orgNm·tel)도 색인·알림에 포함.
+**채널**: `console`(기본) / `email`(SMTP). `NOTIFIER_CHANNEL`로 선택, `get_notifier()` 팩토리. 미설정 시 console 폴백.
+- `EmailNotifier`(SMTP, Gmail 앱 비밀번호): matched 시 수신자에게 메일. 발송 실패해도 요청 안 죽음(로그 후 진행).
+- **카카오 알림톡은 사업자등록증(개인사업자 포함) 필수** → 비사업자는 불가. "나에게 보내기"는 나와의 채팅 침범이라 데모 부적합
+  → **이메일 채널 채택**. (알림톡은 사업자 확보 후 발송대행 API를 같은 Notifier 인터페이스로 추가.)
+
+**남은 일**: 실 SMTP 계정으로 라이브 발송 테스트 / 수신자를 사용자별 이메일로(인증 후) / 알림 이력·중복 방지 / 연락처(orgNm·tel) 포함.
 
 ### ⭐ 웹 화면 (2026-09-15)
 
