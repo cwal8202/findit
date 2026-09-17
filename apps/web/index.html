@@ -63,6 +63,8 @@
   <div class="card">
     <h2>분실물 등록</h2>
     <textarea id="text" placeholder="예: 어제 2호선 지하철에서 검정색 닥스 지갑을 잃어버렸어요. 안에 신분증이랑 카드가 있었어요."></textarea>
+    <input type="email" id="email" placeholder="알림 받을 이메일 (선택) — 나중에 매칭되면 여기로 보내드려요"
+           style="width:100%; margin-top:10px; border:1px solid var(--line); border-radius:10px; padding:11px; font:inherit;" />
     <div class="row">
       <label>분실일(선택) <input type="date" id="lostDate" /></label>
       <button id="go" onclick="registerLost()">찾기</button>
@@ -112,7 +114,7 @@ async function registerLost() {
   const orig = btn.textContent; btn.innerHTML = '<span class="spin"></span>찾는 중…';
   $("hint").textContent = "추출 → 지역 → 검색 → 판정 (10초쯤 걸려요)";
   try {
-    const body = { text, lost_date: $("lostDate").value || null };
+    const body = { text, lost_date: $("lostDate").value || null, email: $("email").value.trim() || null };
     const res = await fetch("/lost-items", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(body) });
     if (!res.ok) throw new Error("서버 오류 " + res.status);
     const d = await res.json();

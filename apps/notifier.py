@@ -66,9 +66,10 @@ class EmailNotifier:
     """SMTP 이메일 알림. 발송 실패해도 요청을 죽이지 않음(로그 후 진행)."""
 
     def notify(self, lost: dict, match: dict) -> None:
-        to = settings.notify_email_to or settings.smtp_user
+        # 수신자 = 신고자가 등록 시 입력한 이메일(신고별) → 없으면 config 기본값
+        to = (lost.get("email") or "").strip() or settings.notify_email_to or settings.smtp_user
         if not (settings.smtp_user and settings.smtp_password and to):
-            _emit("[알림] 이메일 설정 미완료(SMTP_USER/PASSWORD/NOTIFY_EMAIL_TO) → 발송 생략")
+            _emit("[알림] 이메일 설정/수신자 미비(SMTP_USER/PASSWORD·수신 이메일) → 발송 생략")
             return
         subject, body = _match_lines(lost, match)
         msg = EmailMessage()

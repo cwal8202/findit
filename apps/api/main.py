@@ -74,10 +74,11 @@ def register_lost_item(req: LostItemRequest) -> MatchResponse:
     lid = store.add(
         req.text, result.get("extracted", {}), result.get("region_set", []),
         result.get("queries", []), top, best_grade, status=status,
+        email=(req.email or ""),
     )
-    if status == "matched" and top:  # 등록 즉시 매칭 → 알림
+    if status == "matched" and top:  # 등록 즉시 매칭 → 알림(신고자 이메일로)
         from apps.notifier import notifier
-        notifier.notify({"id": lid, "user_id": "anon", "text": req.text}, top)
+        notifier.notify({"id": lid, "user_id": "anon", "text": req.text, "email": req.email or ""}, top)
     return MatchResponse(
         id=lid, status=status, query=req.text,
         extracted=result.get("extracted", {}),

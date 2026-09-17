@@ -31,6 +31,7 @@ def init() -> None:
             CREATE TABLE IF NOT EXISTS lost_items (
                 id TEXT PRIMARY KEY,
                 user_id TEXT,
+                email TEXT,           -- 신고자 수신 이메일(알림 대상)
                 text TEXT,
                 extracted TEXT,       -- JSON
                 region_set TEXT,      -- JSON list
@@ -42,6 +43,10 @@ def init() -> None:
                 matched_at TEXT
             )
         """)
+        # 기존 DB에 email 컬럼 없으면 추가(간단 마이그레이션)
+        cols = [r[1] for r in c.execute("PRAGMA table_info(lost_items)")]
+        if "email" not in cols:
+            c.execute("ALTER TABLE lost_items ADD COLUMN email TEXT")
 
 
 def _row_to_dict(r: sqlite3.Row) -> dict:
@@ -53,13 +58,13 @@ def _row_to_dict(r: sqlite3.Row) -> dict:
 
 def add(text: str, extracted: dict, region_set: list, queries: list,
         best_match: dict | None, best_grade: int | None,
-        status: str = "open", user_id: str = "anon") -> str:
+        status: str = "open", user_id: str = "anon", email: str = "") -> str:
     lid = uuid.uuid4().hex[:12]
     with _conn() as c:
         c.execute(
-            "INSERT INTO lost_items (id,user_id,text,extracted,region_set,queries,"
-            "status,best_match,best_grade,created_at,matched_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-            (lid, user_id, text, json.dumps(extracted, ensure_ascii=False),
+            "INSERT INTO lost_items (id,user_id,email,text,extracted,region_set,queries,"
+            "status,best_match,best_grade,created_at,matched_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+            (lid, user_id, email, text, json.dumps(extracted, ensure_ascii=False),
              json.dumps(region_set, ensure_ascii=False), json.dumps(queries, ensure_ascii=False),
              status, json.dumps(best_match, ensure_ascii=False) if best_match else None,
              best_grade, _now(), _now() if status == "matched" else None),
