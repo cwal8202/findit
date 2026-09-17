@@ -22,12 +22,17 @@ app = FastAPI(title="FindIt API", version="0.1.0",
 store.init()  # 분실물 테이블 생성(멱등)
 
 
-_WEB = Path(__file__).resolve().parents[2] / "apps" / "web" / "index.html"
+_WEB = Path(__file__).resolve().parents[2] / "apps" / "web"
 
 
 @app.get("/", include_in_schema=False)
 def index() -> FileResponse:
-    return FileResponse(_WEB)
+    return FileResponse(_WEB / "index.html")
+
+
+@app.get("/logo.jpg", include_in_schema=False)
+def logo() -> FileResponse:
+    return FileResponse(_WEB / "logo.jpg")
 
 
 @app.get("/health")

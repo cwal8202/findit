@@ -4,6 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>FindIt — 분실물 찾기</title>
+<link rel="icon" type="image/jpeg" href="/logo.jpg" />
 <style>
   :root { --bg:#f5f6f8; --card:#fff; --line:#e5e7eb; --ink:#1f2430; --sub:#6b7280;
           --brand:#2563eb; --brand-d:#1d4ed8; --green:#16a34a; --amber:#d97706; --gray:#9ca3af; }
@@ -55,9 +56,13 @@
 </head>
 <body>
 <div class="wrap">
-  <header>
-    <h1>🔎 FindIt</h1>
-    <p>잃어버린 물건을 자연어로 적으면, 습득물 공개데이터에서 찾아드려요.</p>
+  <header style="display:flex; align-items:center; gap:14px;">
+    <img src="/logo.jpg" alt="FindIt" width="56" height="56"
+         style="border-radius:14px; box-shadow:0 1px 4px rgba(0,0,0,.12);" />
+    <div>
+      <h1 style="margin:0;">FindIt</h1>
+      <p style="margin:2px 0 0;">잃어버린 물건을 자연어로 적으면, 습득물 공개데이터에서 찾아드려요.</p>
+    </div>
   </header>
 
   <div class="card">
