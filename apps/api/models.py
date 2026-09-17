@@ -9,7 +9,8 @@ class FoundItem(BaseModel):
     atc_id: str
     fd_sn: str = "1"
     name: str = ""
-    subject: str = ""
+    subject: str = ""        # 게시제목(자동생성)
+    description: str = ""     # 특이사항/상세내용(uniq) — 상세 enrich 시 채워짐
     category: str = ""
     color: str = ""
     dep_place: str = ""      # 보관장소(원본)

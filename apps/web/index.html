@@ -109,6 +109,7 @@ function chips(items, cls="") {
 }
 
 const validImg = (u) => (u && u.startsWith('http') && !u.includes('no_img')) ? u : '';
+const cleanDesc = (s) => (s||'').replace(/^\s*내용\s*/,'').replace(/\s+/g,' ').trim();
 
 function openLightbox(url){ $("lightboxImg").src = url; $("lightbox").hidden = false; }
 function closeLightbox(){ $("lightbox").hidden = true; $("lightboxImg").src = ""; }
@@ -133,6 +134,8 @@ function matchCard(m, idx) {
     <div class="m-body">
       <div class="m-title">${esc(m.name)} <span class="muted">/ ${esc(m.color)}</span></div>
       <div class="m-meta">${esc(m.category)} · 보관: ${esc(m.dep_place)||'-'} · 지역: ${esc(m.region)||'-'} · 습득일: ${esc(m.found_at)||'-'}</div>
+      ${(m.org_name||m.tel) ? `<div class="m-meta">🏛 ${esc(m.org_name)||'-'}${m.tel?` · ☎ <a href="tel:${esc(m.tel)}">${esc(m.tel)}</a>`:''}</div>` : ''}
+      ${cleanDesc(m.description) ? `<div class="m-reason">📝 ${esc(cleanDesc(m.description).slice(0,140))}${cleanDesc(m.description).length>140?'…':''}</div>` : ''}
       ${m.reason ? `<div class="m-reason">💬 ${esc(m.reason)}</div>` : ''}
       ${btns}
     </div>

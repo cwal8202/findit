@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import html as _html
+import re
 import smtplib
 import sys
 from email.message import EmailMessage
@@ -56,6 +57,11 @@ class ConsoleNotifier:
         )
 
 
+def _clean_desc(s) -> str:
+    """특이사항(uniq) 앞머리 '내용' 라벨·줄바꿈 잡음 정리."""
+    return re.sub(r"\s+", " ", re.sub(r"^\s*내용\s*", "", str(s or ""))).strip()
+
+
 def _valid_img(url: str) -> str:
     """실제 이미지 URL만 통과(경찰청 no_img 플레이스홀더·빈값 제외)."""
     url = (url or "").strip()
@@ -79,6 +85,7 @@ def _text_body(lost: dict, matches: list[dict]) -> str:
         f"• 보관장소: {m.get('dep_place') or '-'}",
         f"• 지역: {m.get('region') or '-'}",
         f"• 습득일: {m.get('found_at') or '-'}",
+        f"• 특이사항: {_clean_desc(m.get('description'))[:140] or '-'}",
         f"• 보관기관: {m.get('org_name') or '-'}  (연락처: {m.get('tel') or '보관기관 문의'})",
         f"• 신뢰도(grade): {m.get('grade')}",
         f"• 판단 근거: {m.get('reason') or '-'}",
@@ -121,7 +128,11 @@ def _card_html(m: dict, primary: bool = False) -> str:
     org = (
         f'<div style="font-size:13px;color:#166534;margin-top:4px">'
         f'🏛 {e(str(m.get("org_name") or "-"))} · ☎ {e(str(m.get("tel") or "보관기관 문의"))}</div>'
-        if primary else ""
+        if (m.get("org_name") or m.get("tel")) else ""
+    )
+    desc = (
+        f'<div style="font-size:13px;color:#374151;margin-top:4px">📝 {e(_clean_desc(m.get("description"))[:140])}</div>'
+        if primary and _clean_desc(m.get("description")) else ""
     )
     return (
         f'<div style="display:flex;align-items:flex-start;border:1px solid #eee;border-radius:10px;'
@@ -130,7 +141,7 @@ def _card_html(m: dict, primary: bool = False) -> str:
         f'<span style="color:#6b7280;font-weight:400">/ {e(str(m.get("color")))}</span> {badge}</div>'
         f'<div style="font-size:13px;color:#6b7280;margin-top:2px">{e(str(m.get("category") or ""))} · '
         f'보관:{e(str(m.get("dep_place") or "-"))} · {e(str(m.get("region") or "-"))} · '
-        f'{e(str(m.get("found_at") or "-"))}</div>{reason}{org}</div></div>'
+        f'{e(str(m.get("found_at") or "-"))}</div>{reason}{desc}{org}</div></div>'
     )
 
 

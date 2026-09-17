@@ -58,6 +58,7 @@ def search(
             "fd_sn": s.get("fd_sn", "1"),
             "name": s.get("name", ""),
             "subject": s.get("subject", ""),
+            "description": s.get("description", ""),
             "category": s.get("category", ""),
             "color": s.get("color", ""),
             "dep_place": s.get("dep_place", ""),
