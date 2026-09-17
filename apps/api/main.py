@@ -10,6 +10,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from apps import store
 
@@ -24,15 +25,13 @@ store.init()  # 분실물 테이블 생성(멱등)
 
 _WEB = Path(__file__).resolve().parents[2] / "apps" / "web"
 
+# 정적 자산은 StaticFiles로 마운트(/static/...). 프로덕션에선 nginx/CDN이 대신 서빙.
+app.mount("/static", StaticFiles(directory=_WEB / "static"), name="static")
+
 
 @app.get("/", include_in_schema=False)
 def index() -> FileResponse:
     return FileResponse(_WEB / "index.html")
-
-
-@app.get("/logo.jpg", include_in_schema=False)
-def logo() -> FileResponse:
-    return FileResponse(_WEB / "logo.jpg")
 
 
 @app.get("/health")
