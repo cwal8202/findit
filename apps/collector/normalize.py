@@ -25,6 +25,8 @@ def normalize(source: str, li: dict, detail: dict | None = None) -> dict:
         "found_at": li.get("fdYmd", "") or detail.get("fdYmd", ""),
         "found_place": detail.get("fdPlace", ""),   # 상세에만 존재(습득장소)
         "description": detail.get("uniq", ""),        # 상세에만 존재(특이사항)
+        "org_name": detail.get("orgNm", ""),          # 상세: 보관기관(수령 안내용)
+        "tel": detail.get("tel", ""),                 # 상세: 연락처(수령 안내용)
         "image_url": li.get("fdFilePathImg", ""),
     }
 

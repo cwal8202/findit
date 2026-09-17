@@ -63,6 +63,8 @@ def search(
             "dep_place": s.get("dep_place", ""),
             "region": region,
             "found_at": s.get("found_at", ""),
+            "org_name": s.get("org_name", ""),
+            "tel": s.get("tel", ""),
             "source": s.get("source", ""),
             "image_url": s.get("image_url", ""),
             "score": round(score, 4),

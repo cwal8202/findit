@@ -15,6 +15,8 @@ class FoundItem(BaseModel):
     dep_place: str = ""      # 보관장소(원본)
     region: str = ""         # 해석된 구/시
     found_at: str = ""       # 습득일
+    org_name: str = ""       # 보관기관(수령 문의)
+    tel: str = ""            # 보관기관 연락처
     source: str = ""
     image_url: str = ""
     score: float             # 임베딩 + 가점 후 점수
