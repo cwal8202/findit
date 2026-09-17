@@ -16,7 +16,14 @@ from apps import store
 
 from . import search as search_mod
 from .config import settings
-from .models import FoundItem, LostItemRequest, MatchResponse, SearchResponse
+from .models import (
+    ConfirmRequest,
+    DismissRequest,
+    FoundItem,
+    LostItemRequest,
+    MatchResponse,
+    SearchResponse,
+)
 
 app = FastAPI(title="FindIt API", version="0.1.0",
               description="분실물 자연어 질의 → 습득물 하이브리드 검색 + 지역 가점 + LLM grading")
@@ -73,14 +80,15 @@ def register_lost_item(req: LostItemRequest) -> MatchResponse:
     raw_matches = result.get("matches", [])
     top = raw_matches[0] if raw_matches else None
     best_grade = top.get("grade") if top else None
-    status = "matched" if (best_grade or 0) >= settings.rematch_grade_threshold else "open"
+    # grade≥임계면 '유력 후보(candidate)' — 확정 아님, 사용자 확인 필요(HITL)
+    status = "candidate" if (best_grade or 0) >= settings.rematch_grade_threshold else "open"
 
     lid = store.add(
         req.text, result.get("extracted", {}), result.get("region_set", []),
         result.get("queries", []), top, best_grade, status=status,
         email=(req.email or ""),
     )
-    if status == "matched" and top:  # 등록 즉시 매칭 → 알림(신고자 이메일로, 후보 목록 포함)
+    if status == "candidate" and top:  # 유력 후보 발견 → 알림(신고자 이메일로, 후보 목록 포함)
         from apps.notifier import notifier
         notifier.notify(
             {"id": lid, "user_id": "anon", "text": req.text, "email": req.email or ""}, raw_matches
@@ -107,3 +115,21 @@ def get_lost_item(lid: str) -> dict:
     if not item:
         raise HTTPException(status_code=404, detail="해당 분실물 신고 없음")
     return item
+
+
+@app.post("/lost-items/{lid}/confirm")
+def confirm_lost_item(lid: str, req: ConfirmRequest) -> dict:
+    """사용자가 '내 물건이에요' 확인 → confirmed. 수령은 사용자가 보관기관에 문의(HITL)."""
+    if not store.get(lid):
+        raise HTTPException(status_code=404, detail="해당 분실물 신고 없음")
+    store.confirm(lid, req.match)
+    return {"ok": True, "status": "confirmed"}
+
+
+@app.post("/lost-items/{lid}/dismiss")
+def dismiss_lost_item(lid: str, req: DismissRequest) -> dict:
+    """사용자가 '아니에요' → 그 후보 제외하고 계속 탐색(open)."""
+    if not store.get(lid):
+        raise HTTPException(status_code=404, detail="해당 분실물 신고 없음")
+    dismissed = store.dismiss(lid, req.atc_id)
+    return {"ok": True, "status": "open", "dismissed": dismissed}

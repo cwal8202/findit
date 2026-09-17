@@ -33,6 +33,7 @@
   .chip.k { background:#e0e7ff; color:#3730a3; }
   .banner { border-radius:10px; padding:10px 14px; margin-bottom:12px; font-weight:600; }
   .banner.matched { background:#dcfce7; color:#166534; }
+  .banner.candidate { background:#dbeafe; color:#1e40af; }
   .banner.open { background:#fef9c3; color:#854d0e; }
   .match { border:1px solid var(--line); border-radius:12px; padding:12px 14px; margin-bottom:10px;
            display:flex; gap:12px; }
@@ -44,7 +45,8 @@
   .m-reason { font-size:13px; margin-top:6px; color:#374151; }
   .muted { color:var(--sub); }
   .status { font-size:12px; padding:2px 9px; border-radius:999px; font-weight:700; }
-  .status.matched { background:#dcfce7; color:#166534; }
+  .status.matched, .status.confirmed { background:#dcfce7; color:#166534; }
+  .status.candidate { background:#dbeafe; color:#1e40af; }
   .status.open { background:#fef9c3; color:#854d0e; }
   .mine-item { border-top:1px solid var(--line); padding:12px 0; }
   .mine-item:first-child { border-top:0; }
@@ -113,7 +115,7 @@ function closeLightbox(){ $("lightbox").hidden = true; $("lightboxImg").src = ""
 document.addEventListener('click', e => { const t = e.target.closest('.thumb'); if (t && t.dataset.full) openLightbox(t.dataset.full); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbox(); });
 
-function matchCard(m) {
+function matchCard(m, idx) {
   const g = m.grade;
   const img = validImg(m.image_url);
   const thumb = img
@@ -121,15 +123,60 @@ function matchCard(m) {
          title="클릭하면 크게 보기"
          style="width:56px;height:56px;object-fit:cover;border-radius:8px;border:1px solid var(--line);flex:0 0 56px;cursor:zoom-in" />`
     : '';
-  return `<div class="match">
+  const btns = `<div style="margin-top:8px; display:flex; gap:6px">
+      <button onclick="confirmMatch(${idx})" style="background:var(--green);padding:5px 12px;border-radius:8px;font-size:13px">내 물건이에요</button>
+      <button onclick="dismissMatch(${idx})" class="ghost" style="padding:5px 12px;border-radius:8px;font-size:13px">아니에요</button>
+    </div>`;
+  return `<div class="match" data-idx="${idx}">
     <div class="grade" style="background:${gradeColor(g)}">${g==null?'–':g}</div>
     ${thumb}
     <div class="m-body">
       <div class="m-title">${esc(m.name)} <span class="muted">/ ${esc(m.color)}</span></div>
       <div class="m-meta">${esc(m.category)} · 보관: ${esc(m.dep_place)||'-'} · 지역: ${esc(m.region)||'-'} · 습득일: ${esc(m.found_at)||'-'}</div>
       ${m.reason ? `<div class="m-reason">💬 ${esc(m.reason)}</div>` : ''}
+      ${btns}
     </div>
   </div>`;
+}
+
+let _lid = null, _matches = [];
+
+async function confirmMatch(idx) {
+  const m = _matches[idx];
+  try {
+    await fetch(`/lost-items/${_lid}/confirm`, { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ match: m }) });
+  } catch (e) {}
+  $("result").innerHTML = claimGuide(m);
+  loadMine();
+}
+
+async function dismissMatch(idx) {
+  const m = _matches[idx];
+  try {
+    await fetch(`/lost-items/${_lid}/dismiss`, { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ atc_id: m.atc_id }) });
+  } catch (e) {}
+  const card = document.querySelector(`#result .match[data-idx="${idx}"]`);
+  if (card) card.remove();
+  loadMine();
+}
+
+function claimGuide(m) {
+  const img = validImg(m.image_url);
+  const thumb = img ? `<img class="thumb" data-full="${esc(img)}" src="${esc(img)}" style="width:72px;height:72px;object-fit:cover;border-radius:8px;flex:0 0 72px;cursor:zoom-in" />` : '';
+  return `<div class="banner matched">✅ 확인 완료! 아래 보관기관으로 수령을 문의하세요.</div>
+    <div class="match">
+      ${thumb}
+      <div class="m-body">
+        <div class="m-title">${esc(m.name)} <span class="muted">/ ${esc(m.color)}</span></div>
+        <div class="m-meta">보관장소: ${esc(m.dep_place)||'-'} · 지역: ${esc(m.region)||'-'} · 습득일: ${esc(m.found_at)||'-'}</div>
+        <div style="margin-top:8px; font-size:14px">
+          🏛 <b>${esc(m.org_name)||'보관기관 정보 없음'}</b>
+          ${m.tel ? `· ☎ <a href="tel:${esc(m.tel)}">${esc(m.tel)}</a>` : '· 연락처는 아래 포털에서 조회'}
+        </div>
+        <div style="margin-top:6px; font-size:13px">🔗 공식 조회: <a href="https://www.lost112.go.kr" target="_blank">lost112.go.kr</a> (경찰청 유실물 통합포털)</div>
+      </div>
+    </div>
+    <p class="muted" style="font-size:13px">※ 신분 확인 등 기관 절차에 따라 본인이 수령하세요. FindIt은 안내만 제공합니다.</p>`;
 }
 
 async function registerLost() {
@@ -143,15 +190,19 @@ async function registerLost() {
     const res = await fetch("/lost-items", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(body) });
     if (!res.ok) throw new Error("서버 오류 " + res.status);
     const d = await res.json();
+    _lid = d.id; _matches = d.matches || [];
     const ex = d.extracted || {};
     const exChips = [ex.item, ex.brand, ex.color, ex.category && ("분류:"+ex.category), ex.place_context, ex.lost_date, ex.features];
+    const banner = d.status === "candidate"
+      ? `<div class="banner candidate">🔔 유력 후보를 찾았어요. 아래에서 <b>맞는지 확인</b>해주세요. (확정은 본인이!)</div>`
+      : `<div class="banner open">🕓 지금은 딱 맞는 게 없어요. 접수해두고 새 습득물이 들어오면 자동으로 다시 찾아 알려드려요. (아래에 비슷한 후보가 있으면 확인해보세요)</div>`;
     $("result").innerHTML =
-      `<div class="banner ${d.status}">${d.status==="matched" ? "✅ 매칭된 습득물을 찾았어요!" : "🕓 지금은 딱 맞는 게 없어요. 접수해두고, 새 습득물이 들어오면 자동으로 다시 찾아 알려드려요."}</div>
+      `${banner}
        <div style="margin-bottom:8px"><b>추출</b> ${chips(exChips)}</div>
        ${d.region_set?.length ? `<div style="margin-bottom:8px"><b>검색 지역</b> ${chips(d.region_set, "k")}</div>` : ""}
        <div style="margin-bottom:8px"><b>후보 쿼리</b> ${chips(d.queries)}</div>
-       <div style="margin-top:12px"><b>매칭 ${d.count}건</b></div>
-       ${(d.matches||[]).slice(0,6).map(matchCard).join("") || '<span class="muted">후보 없음</span>'}`;
+       <div style="margin-top:12px"><b>후보 ${d.count}건 — 본인 물건이 있나요?</b></div>
+       ${(d.matches||[]).slice(0,6).map((m,i)=>matchCard(m,i)).join("") || '<span class="muted">후보 없음</span>'}`;
     $("resultCard").hidden = false;
     $("resultCard").scrollIntoView({ behavior:"smooth", block:"nearest" });
     $("hint").textContent = "";
@@ -176,7 +227,7 @@ async function loadMine() {
             <div>${esc(it.text)}</div>
             <div class="m-meta">${when}${bm ? " · 최고 매칭: "+esc(bm.name)+" (grade "+(it.best_grade??"-")+")" : ""}</div>
           </div>
-          <span class="status ${it.status}">${it.status==="matched"?"매칭됨":"찾는중"}</span>
+          <span class="status ${it.status==='matched'?'candidate':it.status}">${it.status==='confirmed'?'확인됨':(it.status==='candidate'||it.status==='matched')?'유력 후보':'찾는중'}</span>
         </div>
       </div>`;
     }).join("");

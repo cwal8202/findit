@@ -38,10 +38,18 @@ class LostItemRequest(BaseModel):
     email: str | None = None        # 매칭 시 알림 받을 이메일(신고자별)
 
 
+class ConfirmRequest(BaseModel):
+    match: dict                     # 사용자가 '내 물건이에요' 한 습득물(기록·수령안내용)
+
+
+class DismissRequest(BaseModel):
+    atc_id: str                     # 사용자가 '아니에요' 한 후보
+
+
 class MatchResponse(BaseModel):
     """에이전트 매칭 결과 — 추출·지역집합·fan-out 쿼리까지 투명하게 노출."""
     id: str = ""                    # 저장된 분실물 id
-    status: str = "open"            # open | matched
+    status: str = "open"            # open(찾는중) | candidate(유력후보) | confirmed
     query: str
     extracted: dict = {}
     region_set: list[str] = []

@@ -36,22 +36,24 @@ def init() -> None:
                 extracted TEXT,       -- JSON
                 region_set TEXT,      -- JSON list
                 queries TEXT,         -- JSON list
-                status TEXT DEFAULT 'open',   -- open | matched | closed
+                status TEXT DEFAULT 'open',   -- open(찾는중) | candidate(유력후보) | confirmed(확인됨)
                 best_match TEXT,      -- JSON (최고 매칭 습득물)
                 best_grade INTEGER,
+                dismissed TEXT,       -- JSON list of atc_id (사용자가 '아니에요' 한 후보)
                 created_at TEXT,
                 matched_at TEXT
             )
         """)
-        # 기존 DB에 email 컬럼 없으면 추가(간단 마이그레이션)
+        # 기존 DB 간단 마이그레이션(누락 컬럼 추가)
         cols = [r[1] for r in c.execute("PRAGMA table_info(lost_items)")]
-        if "email" not in cols:
-            c.execute("ALTER TABLE lost_items ADD COLUMN email TEXT")
+        for col in ("email", "dismissed"):
+            if col not in cols:
+                c.execute(f"ALTER TABLE lost_items ADD COLUMN {col} TEXT")
 
 
 def _row_to_dict(r: sqlite3.Row) -> dict:
     d = dict(r)
-    for k in ("extracted", "region_set", "queries", "best_match"):
+    for k in ("extracted", "region_set", "queries", "best_match", "dismissed"):
         d[k] = json.loads(d[k]) if d.get(k) else None
     return d
 
@@ -95,3 +97,26 @@ def update_match(lid: str, best_match: dict, best_grade: int, status: str) -> No
             "UPDATE lost_items SET best_match=?, best_grade=?, status=?, matched_at=? WHERE id=?",
             (json.dumps(best_match, ensure_ascii=False), best_grade, status, _now(), lid),
         )
+
+
+def confirm(lid: str, match: dict) -> None:
+    """사용자가 '내 물건이에요' → 확인됨(수령 단계)."""
+    with _conn() as c:
+        c.execute(
+            "UPDATE lost_items SET status='confirmed', best_match=?, best_grade=?, matched_at=? WHERE id=?",
+            (json.dumps(match, ensure_ascii=False), match.get("grade"), _now(), lid),
+        )
+
+
+def dismiss(lid: str, atc_id: str) -> list[str]:
+    """사용자가 '아니에요' → 그 후보 제외(재추천 방지), 다시 찾는중(open)."""
+    row = get(lid)
+    dis = (row.get("dismissed") if row else None) or []
+    if atc_id and atc_id not in dis:
+        dis.append(atc_id)
+    with _conn() as c:
+        c.execute(
+            "UPDATE lost_items SET status='open', dismissed=? WHERE id=?",
+            (json.dumps(dis, ensure_ascii=False), lid),
+        )
+    return dis

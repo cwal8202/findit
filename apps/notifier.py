@@ -48,7 +48,7 @@ class ConsoleNotifier:
         text = (lost.get("text") or "")[:30]
         extra = max(len(matches) - 1, 0)
         _emit(
-            f"🔔 [알림→{who}] 분실물 '{text}' 매칭!\n"
+            f"🔔 [알림→{who}] 분실물 '{text}' 유력 후보 발견(확인 필요)!\n"
             f"    → {m.get('name')}/{m.get('color')} "
             f"(grade {m.get('grade')}) | 보관:{m.get('dep_place')} "
             f"지역:{m.get('region') or '-'} | 습득일:{m.get('found_at')}"
@@ -71,14 +71,16 @@ def _grade_color(g) -> str:
 def _text_body(lost: dict, matches: list[dict]) -> str:
     m = _top(matches)
     lines = [
-        f"등록하신 분실물 '{(lost.get('text') or '')[:40]}' 과(와) 일치하는 습득물을 찾았어요.",
+        f"등록하신 분실물 '{(lost.get('text') or '')[:40]}' 과(와) 일치할 가능성이 높은 습득물을 찾았어요.",
+        "맞는지 아래 정보를 확인하고, 본인 물건이면 보관 기관에 수령을 문의하세요.",
         "",
         f"• 물품: {m.get('name')} / {m.get('color')}",
         f"• 분류: {m.get('category')}",
         f"• 보관장소: {m.get('dep_place') or '-'}",
         f"• 지역: {m.get('region') or '-'}",
         f"• 습득일: {m.get('found_at') or '-'}",
-        f"• 매칭 신뢰도(grade): {m.get('grade')}",
+        f"• 보관기관: {m.get('org_name') or '-'}  (연락처: {m.get('tel') or '보관기관 문의'})",
+        f"• 신뢰도(grade): {m.get('grade')}",
         f"• 판단 근거: {m.get('reason') or '-'}",
     ]
     others = matches[1 : 1 + TOP_OTHERS]
@@ -89,7 +91,12 @@ def _text_body(lost: dict, matches: list[dict]) -> str:
                 f"  - {o.get('name')}/{o.get('color')} (grade {o.get('grade')}) · "
                 f"{o.get('region') or '-'} · 보관:{o.get('dep_place') or '-'}"
             )
-    lines += ["", "자세한 확인·수령 절차는 보관 기관에 문의하세요. (본 메일은 FindIt 자동 알림입니다.)"]
+    lines += [
+        "",
+        "본인 물건이면 위 보관기관 연락처로 수령을 문의하세요.",
+        "공식 조회: https://www.lost112.go.kr (경찰청 유실물 통합포털)",
+        "(본 메일은 FindIt 자동 알림입니다. 최종 확인·수령은 본인이 진행하세요.)",
+    ]
     return "\n".join(lines)
 
 
@@ -111,6 +118,11 @@ def _card_html(m: dict, primary: bool = False) -> str:
         f'<div style="font-size:13px;color:#374151;margin-top:4px">💬 {e(str(m.get("reason") or ""))}</div>'
         if primary and m.get("reason") else ""
     )
+    org = (
+        f'<div style="font-size:13px;color:#166534;margin-top:4px">'
+        f'🏛 {e(str(m.get("org_name") or "-"))} · ☎ {e(str(m.get("tel") or "보관기관 문의"))}</div>'
+        if primary else ""
+    )
     return (
         f'<div style="display:flex;align-items:flex-start;border:1px solid #eee;border-radius:10px;'
         f'padding:12px;margin:8px 0">{imgtag}<div style="flex:1">'
@@ -118,7 +130,7 @@ def _card_html(m: dict, primary: bool = False) -> str:
         f'<span style="color:#6b7280;font-weight:400">/ {e(str(m.get("color")))}</span> {badge}</div>'
         f'<div style="font-size:13px;color:#6b7280;margin-top:2px">{e(str(m.get("category") or ""))} · '
         f'보관:{e(str(m.get("dep_place") or "-"))} · {e(str(m.get("region") or "-"))} · '
-        f'{e(str(m.get("found_at") or "-"))}</div>{reason}</div></div>'
+        f'{e(str(m.get("found_at") or "-"))}</div>{reason}{org}</div></div>'
     )
 
 
@@ -134,11 +146,13 @@ def _html_body(lost: dict, matches: list[dict]) -> str:
     return (
         '<div style="font-family:-apple-system,BlinkMacSystemFont,\'Malgun Gothic\',sans-serif;'
         'max-width:560px;color:#1f2430">'
-        '<h2 style="font-size:18px">🔔 분실물 매칭 알림</h2>'
-        f'<p>등록하신 \'<b>{e((lost.get("text") or "")[:40])}</b>\' 과(와) 일치하는 습득물을 찾았어요.</p>'
+        '<h2 style="font-size:18px">🔔 유력 후보를 찾았어요 — 확인해보세요</h2>'
+        f'<p>등록하신 \'<b>{e((lost.get("text") or "")[:40])}</b>\' 과(와) 일치할 가능성이 높은 '
+        '습득물이에요. 본인 물건이면 아래 보관기관으로 수령을 문의하세요.</p>'
         f'{_card_html(_top(matches), primary=True)}{others_html}'
-        '<p style="color:#888;font-size:12px;margin-top:16px">자세한 확인·수령 절차는 보관 기관에 '
-        '문의하세요. 본 메일은 FindIt 자동 알림입니다.</p></div>'
+        '<p style="color:#888;font-size:12px;margin-top:16px">공식 조회: '
+        '<a href="https://www.lost112.go.kr">lost112.go.kr</a> (경찰청 유실물 통합포털). '
+        '최종 확인·수령은 본인이 진행하세요. 본 메일은 FindIt 자동 알림입니다.</p></div>'
     )
 
 

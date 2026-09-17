@@ -25,12 +25,14 @@ def rematch_open(verbose: bool = True) -> list[dict]:
         matches = graph.match_stored(
             row["text"], row["extracted"] or {}, row["region_set"] or [], row["queries"] or []
         )
+        dismissed = set(row.get("dismissed") or [])  # '아니에요' 한 후보 제외
+        matches = [m for m in matches if m.get("atc_id") not in dismissed]
         top = matches[0] if matches else None
         g = top.get("grade") if top else None
         if top and g is not None and g >= settings.rematch_grade_threshold:
-            store.update_match(row["id"], top, g, "matched")
+            store.update_match(row["id"], top, g, "candidate")  # 확정 아닌 '유력 후보'
             hits.append({"lost": row, "match": top})
-            notifier.notify(row, matches)  # 채널 독립 알림(최고 매칭 + 비슷한 후보 목록)
+            notifier.notify(row, matches)  # 채널 독립 알림(최고 후보 + 비슷한 후보 목록)
         elif verbose:
             print(f"  · {row['id']} '{row['text'][:24]}' 최고 grade={g} (임계 미달, open 유지)")
     if verbose:
