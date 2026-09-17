@@ -100,10 +100,18 @@ function chips(items, cls="") {
   return `<div class="chips">${items.filter(Boolean).map(x=>`<span class="chip ${cls}">${esc(x)}</span>`).join("")}</div>`;
 }
 
+const validImg = (u) => (u && u.startsWith('http') && !u.includes('no_img')) ? u : '';
+
 function matchCard(m) {
   const g = m.grade;
+  const img = validImg(m.image_url);
+  const thumb = img
+    ? `<img src="${esc(img)}" alt="" referrerpolicy="no-referrer" onerror="this.style.display='none'"
+         style="width:56px;height:56px;object-fit:cover;border-radius:8px;border:1px solid var(--line);flex:0 0 56px" />`
+    : '';
   return `<div class="match">
     <div class="grade" style="background:${gradeColor(g)}">${g==null?'–':g}</div>
+    ${thumb}
     <div class="m-body">
       <div class="m-title">${esc(m.name)} <span class="muted">/ ${esc(m.color)}</span></div>
       <div class="m-meta">${esc(m.category)} · 보관: ${esc(m.dep_place)||'-'} · 지역: ${esc(m.region)||'-'} · 습득일: ${esc(m.found_at)||'-'}</div>
