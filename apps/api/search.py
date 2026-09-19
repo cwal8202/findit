@@ -56,9 +56,10 @@ def browse(q: str = "", region: str = "", date_from: str = "", date_to: str = ""
     """전체 습득물 둘러보기 — BM25 키워드 + 지역/날짜 필터 + 최신순(임베딩·LLM 미사용, 무료·즉시).
 
     반환: {total, page, size, items, regions(집계)}. region 드롭다운은 regions 집계로 구성.
-    외국인 대응: 키워드에 영문이 있으면 한국어로 번역해 검색(습득물 데이터가 한국어라 BM25 매칭되게).
+    외국인 대응: 키워드에 한글이 없으면(영어·일본어 등) 한국어로 번역해 검색(데이터가 한국어라 BM25 매칭되게).
+    브라우저 번역은 '화면'만 바꾸고 '입력'은 안 바꾸므로, 검색어 번역은 서버가 담당.
     """
-    if q and re.search(r"[A-Za-z]", q):  # 영문 키워드 → 한국어(예: wallet→지갑)
+    if q and not re.search(r"[가-힣]", q):  # 비-한국어 키워드 → 한국어(예: wallet/財布/cartera→지갑)
         res = gemini.generate_json(
             f'분실물 검색어 "{q}"를 한국어 습득물 검색 키워드로 번역하세요. '
             f'설명 없이 JSON만: {{"ko": "<한국어 키워드>"}}'
