@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import math
+import time
 import urllib.error
 import urllib.request
 
@@ -31,12 +32,25 @@ _GRADE_PROMPT = """당신은 분실물↔습득물 매칭 심판입니다.
 """
 
 
-def _post(url: str, body: dict, timeout: int = 60) -> dict:
-    req = urllib.request.Request(
-        url, json.dumps(body).encode("utf-8"), {"Content-Type": "application/json"}
-    )
-    with urllib.request.urlopen(req, timeout=timeout) as r:
-        return json.load(r)
+def _post(url: str, body: dict, timeout: int = 60, max_retry: int = 6) -> dict:
+    """429/5xx는 지수 백오프로 재시도(대량 임베딩·쿼터 대응)."""
+    payload = json.dumps(body).encode("utf-8")
+    for attempt in range(max_retry):
+        try:
+            req = urllib.request.Request(url, payload, {"Content-Type": "application/json"})
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                return json.load(r)
+        except urllib.error.HTTPError as e:
+            if e.code in (429, 500, 503) and attempt < max_retry - 1:
+                time.sleep(min(30, 5 * (attempt + 1)))  # 5,10,...,30s
+                continue
+            raise
+        except (urllib.error.URLError, TimeoutError):
+            if attempt < max_retry - 1:
+                time.sleep(5)
+                continue
+            raise
+    raise RuntimeError("Gemini _post: 재시도 소진")
 
 
 def embed_query(text: str) -> list[float]:
@@ -71,9 +85,10 @@ def generate_json(prompt: str, timeout: int = 60):
 def embed_texts(texts: list[str], chunk: int = 50) -> list[list[float]]:
     """여러 문서를 배치 임베딩(정규화). 수집기 색인용. batchEmbedContents 청크."""
     out: list[list[float]] = []
-    for i in range(0, len(texts), chunk):
+    url = f"{_BASE}/{settings.gemini_embed_model}:batchEmbedContents?key={settings.gemini_api_key}"
+    n_chunks = (len(texts) + chunk - 1) // chunk
+    for idx, i in enumerate(range(0, len(texts), chunk)):
         part = texts[i : i + chunk]
-        url = f"{_BASE}/{settings.gemini_embed_model}:batchEmbedContents?key={settings.gemini_api_key}"
         body = {"requests": [{
             "model": f"models/{settings.gemini_embed_model}",
             "content": {"parts": [{"text": t}]},
@@ -83,6 +98,8 @@ def embed_texts(texts: list[str], chunk: int = 50) -> list[list[float]]:
             v = e["values"]
             n = math.sqrt(sum(x * x for x in v)) or 1.0
             out.append([x / n for x in v])
+        if idx < n_chunks - 1:
+            time.sleep(0.6)  # 청크 간 페이싱(RPM 한도 여유)
     return out
 
 
