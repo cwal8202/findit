@@ -161,6 +161,7 @@
       <button class="ghost" onclick="resetBrowse()" data-i18n="reset">초기화</button>
       <span id="bcount" class="muted" style="font-size:13px"></span>
     </div>
+    <div id="brXlate" class="note" style="display:none; background:#eff6ff; border-color:#bfdbfe; color:#1e40af; margin-top:10px" data-i18n="browseXlate"></div>
   </div>
 
   <div class="card">
@@ -208,7 +209,7 @@ const I18N = {
     emailOfferText:"📧 지금 못 찾아도 괜찮아요. <b>이메일을 남기면</b> 이 결과를 보내드리고, 이후 새 습득물이 들어와 매칭되면 자동으로 알려드려요.",
     emailPh2:"이메일 주소", send:"보내기", emailInvalid:"유효한 이메일을 입력하세요.", emailSending:"보내는 중…",
     emailSent:(x)=>`✅ ${x} 로 보냈어요. 이후 매칭되면 이 주소로 알려드릴게요.`, emailFail:"발송 실패 ",
-    browseCount:(n)=>`총 ${n.toLocaleString()}건`, noItems:"조건에 맞는 습득물이 없어요.", noName:"(이름 없음)",
+    browseXlate:"", browseCount:(n)=>`총 ${n.toLocaleString()}건`, noItems:"조건에 맞는 습득물이 없어요.", noName:"(이름 없음)",
     prev:"‹ 이전", next:"다음 ›", loadFail:"불러오지 못했어요.", mineEmpty:"아직 등록한 신고가 없어요.",
     mineLoadFail:"목록을 불러오지 못했어요.", bestMatch:"최고 매칭",
     stConfirmed:"확인됨", stCandidate:"유력 후보", stOpen:"찾는중",
@@ -242,6 +243,7 @@ const I18N = {
     emailOfferText:"📧 Not found yet? <b>Leave your email</b> — we'll send you these results and alert you automatically when a new matching item arrives.",
     emailPh2:"Email address", send:"Send", emailInvalid:"Enter a valid email.", emailSending:"Sending…",
     emailSent:(x)=>`✅ Sent to ${x}. We'll alert this address on future matches.`, emailFail:"Send failed ",
+    browseXlate:"💡 Item names &amp; descriptions here are in Korean. To read them in your language, use your browser's <b>“Translate page”</b> (right-click → Translate, or the translate icon in the address bar).",
     browseCount:(n)=>`${n.toLocaleString()} total`, noItems:"No found items match.", noName:"(no name)",
     prev:"‹ Prev", next:"Next ›", loadFail:"Couldn't load.", mineEmpty:"No reports yet.",
     mineLoadFail:"Couldn't load the list.", bestMatch:"Best match",
@@ -262,6 +264,7 @@ function applyLang() {
   document.querySelectorAll("[data-i18n]").forEach(el => { el.innerHTML = t(el.dataset.i18n); });
   document.querySelectorAll("[data-i18n-ph]").forEach(el => { el.placeholder = t(el.dataset.i18nPh); });
   $("langBtn").textContent = LANG === "ko" ? "EN" : "한국어";
+  const bx = $("brXlate"); if (bx) bx.style.display = LANG === "en" ? "" : "none";  // 브라우저 번역 안내는 EN에서만
 }
 
 function toggleLang() {
