@@ -59,11 +59,12 @@
   .langsel { border:1px solid #c7d2fe; border-radius:999px; padding:7px 12px; font:inherit;
              font-size:13px; font-weight:600; color:var(--brand-d); background:#eef2ff; cursor:pointer; }
   .langsel:hover { background:#e0e7ff; }
-  /* Google 번역 위젯의 기본 UI·상단 배너 숨김(우리 langsel로 구동). */
-  #google_translate_element { display:none; }
-  .goog-te-banner-frame.skiptranslate, .goog-te-gadget-icon { display:none !important; }
-  .goog-te-balloon-frame, #goog-gt-tt { display:none !important; }
-  body { top:0 !important; }
+  /* Google 번역 위젯의 기본 UI·상단 배너 숨김(우리 langsel로 구동). 신버전은 클래스가 난독화돼
+     iframe.skiptranslate로 잡음(배너·메뉴 iframe). 번역 자체는 스크립트가 하므로 숨겨도 동작. */
+  #google_translate_element { display:none !important; }
+  iframe.skiptranslate { display:none !important; }
+  .goog-te-gadget-icon, #goog-gt-tt, .goog-te-balloon-frame { display:none !important; }
+  body { top:0 !important; position:static !important; }
   .goog-text-highlight { background:none !important; box-shadow:none !important; }
   .note { background:#fffbeb; border:1px solid #fde68a; color:#92400e; border-radius:10px;
           padding:9px 12px; font-size:12.5px; line-height:1.5; }
