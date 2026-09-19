@@ -40,7 +40,9 @@ app.mount("/static", StaticFiles(directory=_WEB / "static"), name="static")
 
 @app.get("/", include_in_schema=False)
 def index() -> FileResponse:
-    return FileResponse(_WEB / "index.html")
+    # index.html은 항상 최신으로(배포 후 브라우저 캐시로 옛 화면 붙잡는 문제 방지). 정적 자산은 캐시 허용.
+    return FileResponse(_WEB / "index.html",
+                        headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
 
 
 @app.get("/health")
