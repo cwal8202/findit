@@ -1,0 +1,33 @@
+# main 브랜치에 push되면 → 서버에 SSH 접속 → 최신 코드로 재빌드/재실행.
+# 서버 접속 정보는 레포 Settings > Secrets(금고)에 저장(코드에 노출 안 함):
+#   SSH_HOST : 서버 IP
+#   SSH_KEY  : 서버 접속용 SSH 개인키 전체(-----BEGIN ...----- 포함)
+name: Deploy
+
+on:
+  push:
+    branches: [main]          # main에 push될 때만 실행
+  workflow_dispatch: {}       # (수동 실행 버튼도 제공)
+
+# 배포 중 또 push돼도 동시에 겹쳐 돌지 않게(뒤엣것만 실행)
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest    # GitHub가 빌려주는 임시 리눅스
+    steps:
+      - name: 서버에 SSH 접속해 배포
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: root
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            set -e
+            cd /root/findit
+            git pull --ff-only
+            docker compose -f docker-compose.prod.yml up -d --build backend caddy
+            docker image prune -f
+            docker compose -f docker-compose.prod.yml ps
