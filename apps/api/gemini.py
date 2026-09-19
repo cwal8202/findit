@@ -99,6 +99,36 @@ def generate_json_image(prompt: str, image_b64: str, mime: str = "image/jpeg", t
         return None
 
 
+_COMPARE_PROMPT = """두 이미지가 '같은(또는 매우 비슷한) 물건'인지 판단하세요.
+첫 번째는 사용자가 잃어버린 물건 사진, 두 번째는 습득물 보관 사진입니다.
+색상·형태·재질·브랜드·종류를 종합해, 같은 물건일 가능성을 0~100으로 채점하세요.
+습득물 사진은 조명·각도·배경이 다를 수 있으니 그 점은 감안하세요.
+반드시 아래 JSON만: {"score": <0~100 정수>, "reason": "<한 줄 근거>"}"""
+
+
+def compare_images(user_b64: str, cand_b64: str, user_mime: str = "image/jpeg",
+                   cand_mime: str = "image/jpeg", lang: str = "ko") -> dict | None:
+    """사용자 사진 ↔ 습득물 사진 직접 대조(멀티모달). {"score","reason"} 또는 None(실패)."""
+    prompt = _COMPARE_PROMPT
+    if lang != "ko":
+        prompt += f"\n중요: 'reason'은 {_LANG_NAME.get(lang, 'English')}로 작성하세요."
+    url = f"{_BASE}/{settings.gemini_grade_model}:generateContent?key={settings.gemini_api_key}"
+    body = {
+        "contents": [{"parts": [
+            {"text": prompt},
+            {"inline_data": {"mime_type": user_mime, "data": user_b64}},
+            {"inline_data": {"mime_type": cand_mime, "data": cand_b64}},
+        ]}],
+        "generationConfig": {"responseMimeType": "application/json", "temperature": 0},
+    }
+    try:
+        text = _post(url, body, timeout=60)["candidates"][0]["content"]["parts"][0]["text"]
+        r = json.loads(text)
+        return {"score": int(r.get("score")), "reason": (r.get("reason") or "").strip()}
+    except (KeyError, IndexError, ValueError, TypeError, json.JSONDecodeError, urllib.error.URLError):
+        return None
+
+
 def embed_texts(texts: list[str], chunk: int = 50) -> list[list[float]]:
     """여러 문서를 배치 임베딩(정규화). 수집기 색인용. batchEmbedContents 청크."""
     out: list[list[float]] = []

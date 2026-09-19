@@ -23,6 +23,8 @@ class FoundItem(BaseModel):
     score: float             # 임베딩 + 가점 후 점수
     grade: int | None = None    # LLM 판정 0~100 (grade=true일 때만)
     reason: str | None = None   # LLM 근거
+    visual_score: int | None = None   # 사진 대조 0~100 (사진 검색 + 후보에 사진 있을 때만)
+    visual_reason: str | None = None  # 사진 대조 근거
 
 
 class SearchResponse(BaseModel):

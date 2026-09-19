@@ -6,6 +6,8 @@ v1은 선형. 추후 분기/루프(예: grade 낮으면 fanout 확장 후 재검
 
 from __future__ import annotations
 
+import base64
+import urllib.request
 from typing import TypedDict
 
 from langgraph.graph import END, START, StateGraph
@@ -103,11 +105,52 @@ def _synth_text(ex: dict, note: str = "") -> str:
     return " / ".join(parts) or (ex.get("category", "") or "사진 신고")
 
 
+def _valid_img(u: str) -> bool:
+    return bool(u) and u.startswith("http") and "no_img" not in u
+
+
+def _fetch_image_b64(url: str, max_bytes: int = 5_000_000) -> tuple[str | None, str]:
+    """습득물 사진 URL → (base64, mime). 실패·과대·비이미지면 (None, "")."""
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=15) as r:
+            ctype = (r.headers.get("Content-Type") or "").split(";")[0].strip()
+            data = r.read(max_bytes + 1)
+        if len(data) > max_bytes or not ctype.startswith("image/"):
+            return None, ""
+        return base64.b64encode(data).decode(), ctype
+    except Exception:  # noqa: BLE001
+        return None, ""
+
+
+def _visual_compare(user_b64: str, user_mime: str, matches: list[dict],
+                    lang: str = "ko", top: int = 3) -> None:
+    """사진 있는 상위 후보를 사용자 사진과 직접 대조(VISUAL 레인). matches를 제자리 주석.
+
+    사진 없는 습득물이 많으므로(≈78%) 사진 있는 후보만, 지연·비용 위해 top개로 제한. 실패는 조용히 스킵.
+    """
+    checked = 0
+    for m in matches:
+        if checked >= top:
+            break
+        if not _valid_img(m.get("image_url", "")):
+            continue
+        cand_b64, cand_mime = _fetch_image_b64(m["image_url"])
+        if not cand_b64:
+            continue
+        checked += 1
+        res = gemini.compare_images(user_b64, cand_b64, user_mime, cand_mime or "image/jpeg", lang)
+        if res:
+            m["visual_score"] = res.get("score")
+            m["visual_reason"] = res.get("reason")
+
+
 def run_image(image_b64: str, mime: str = "image/jpeg",
               note: str = "", lost_date: str | None = None, lang: str = "ko") -> dict:
-    """사진(+선택 메모) 신고 → Vision 추출 → 텍스트와 동일 파이프라인(라우팅~grade).
+    """사진(+선택 메모) 신고 → Vision 추출 → 텍스트 동일 파이프라인 → (사진 있는 후보) 사진 대조.
 
     사진에는 문장이 없으므로 추출 필드로 검색용 text를 합성해 grade/저장/표시에 재사용.
+    VISUAL 레인: 텍스트로 추린 후보 중 사진 있는 상위 몇 개를 사용자 사진과 직접 비교(가점 아님, 주석·표시).
     """
     ex = extract_mod.extract_image(image_b64, mime, note=note, lost_date=lost_date)
     text = _synth_text(ex, note)
@@ -116,6 +159,7 @@ def run_image(image_b64: str, mime: str = "image/jpeg",
     state.update(n_fanout(state))
     state.update(n_search(state))
     state.update(n_grade(state))
+    _visual_compare(image_b64, mime, state.get("matches", []), lang)
     return state
 
 

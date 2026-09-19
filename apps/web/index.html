@@ -190,7 +190,8 @@ const I18N = {
     matchResult:"매칭 결과", myReports:"내 신고 목록", refresh:"새로고침", loading:"불러오는 중…",
     browseTitle:"전체 습득물 둘러보기", browseDesc:"공개데이터로 수집된 습득물을 키워드·지역·날짜로 필터링해 살펴보세요. (AI 판정 없이 즉시 조회)",
     kwPh:"키워드 (예: 지갑, 에어팟, 카드)", allRegions:"전체 지역", foundDate:"습득일", searchBtn:"검색", reset:"초기화",
-    hintPipe:"추출 → 지역 → 검색 → 판정 (10초쯤 걸려요)", hintPhoto:"사진 분석 → 검색 → 판정 (10초쯤 걸려요)",
+    hintPipe:"추출 → 지역 → 검색 → 판정 (10초쯤 걸려요)", hintPhoto:"사진 분석 → 검색 → 판정 → 사진 대조 (15초쯤 걸려요)",
+    visualSim:"사진도 유사",
     needText:"분실물 설명을 입력하세요.", needPhoto:"먼저 사진을 선택하세요.", errPrefix:"오류: ", serverErr:"서버 오류 ",
     bannerCand:"🔔 유력 후보를 찾았어요. 아래에서 <b>맞는지 확인</b>해주세요. (확정은 본인이!)",
     bannerOpen:"🕓 지금은 딱 맞는 게 없어요. 접수해두고 새 습득물이 들어오면 자동으로 다시 찾아 알려드려요. (아래에 비슷한 후보가 있으면 확인해보세요)",
@@ -223,7 +224,8 @@ const I18N = {
     matchResult:"Match results", myReports:"My reports", refresh:"Refresh", loading:"Loading…",
     browseTitle:"Browse all found items", browseDesc:"Browse collected found items by keyword, region and date. (Instant — no AI grading.)",
     kwPh:"Keyword (e.g., wallet, AirPods, card)", allRegions:"All regions", foundDate:"Found date", searchBtn:"Search", reset:"Reset",
-    hintPipe:"Extract → region → search → grade (~10s)", hintPhoto:"Reading photo → search → grade (~10s)",
+    hintPipe:"Extract → region → search → grade (~10s)", hintPhoto:"Reading photo → search → grade → photo compare (~15s)",
+    visualSim:"Photo match",
     needText:"Please describe your lost item.", needPhoto:"Please choose a photo first.", errPrefix:"Error: ", serverErr:"Server error ",
     bannerCand:"🔔 We found strong candidates. <b>Check below</b> if any is yours. (You confirm — we never auto-claim.)",
     bannerOpen:"🕓 No exact match yet. We saved your report and will re-check automatically as new items arrive. (See similar candidates below.)",
@@ -300,6 +302,7 @@ function matchCard(m, idx) {
       ${(m.org_name||m.tel) ? `<div class="m-meta">🏛 ${esc(m.org_name)||'-'}${m.tel?` · ☎ <a href="tel:${esc(m.tel)}">${esc(m.tel)}</a>`:''}</div>` : ''}
       ${cleanDesc(m.description) ? `<div class="m-reason">📝 ${esc(cleanDesc(m.description).slice(0,140))}${cleanDesc(m.description).length>140?'…':''}</div>` : ''}
       ${m.reason ? `<div class="m-reason">💬 ${esc(m.reason)}</div>` : ''}
+      ${m.visual_score != null ? `<div class="m-reason" style="color:#047857"><b>📷 ${t('visualSim')} ${m.visual_score}</b>${m.visual_reason ? ` — ${esc(m.visual_reason)}` : ''}</div>` : ''}
       ${btns}
     </div>
   </div>`;
