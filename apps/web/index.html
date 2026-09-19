@@ -244,6 +244,16 @@
       <label>~ <input type="date" id="bto" onchange="doBrowse(1)" /></label>
       <button onclick="doBrowse(1)" data-i18n="searchBtn">검색</button>
       <button class="ghost" onclick="resetBrowse()" data-i18n="reset">초기화</button>
+      <label style="font-size:13px; color:var(--sub); margin-left:auto">
+        <select id="bsize" onchange="doBrowse(1)"
+                style="border:1px solid var(--line); border-radius:8px; padding:6px 8px; font:inherit">
+          <option value="5">5</option>
+          <option value="10" selected>10</option>
+          <option value="15">15</option>
+          <option value="20">20</option>
+          <option value="25">25</option>
+        </select> <span data-i18n="perPage">개씩</span>
+      </label>
       <span id="bcount" class="muted" style="font-size:13px"></span>
     </div>
   </div>
@@ -305,7 +315,7 @@ const I18N = {
     emailOfferText:"📧 지금 못 찾아도 괜찮아요. <b>이메일을 남기면</b> 이 결과를 보내드리고, 이후 새 습득물이 들어와 매칭되면 자동으로 알려드려요.",
     emailPh2:"이메일 주소", send:"보내기", emailInvalid:"유효한 이메일을 입력하세요.", emailSending:"보내는 중…",
     emailSent:(x)=>`✅ ${x} 로 보냈어요. 이후 매칭되면 이 주소로 알려드릴게요.`, emailFail:"발송 실패 ",
-    browseXlate:"", browseCount:(n)=>`총 ${n.toLocaleString()}건`, noItems:"조건에 맞는 습득물이 없어요.", noName:"(이름 없음)",
+    browseXlate:"", perPage:"개씩", browseCount:(n)=>`총 ${n.toLocaleString()}건`, noItems:"조건에 맞는 습득물이 없어요.", noName:"(이름 없음)",
     prev:"‹ 이전", next:"다음 ›", loadFail:"불러오지 못했어요.", mineEmpty:"아직 등록한 신고가 없어요.",
     mineLoadFail:"목록을 불러오지 못했어요.", bestMatch:"최고 매칭",
     stConfirmed:"확인됨", stCandidate:"유력 후보", stOpen:"찾는중",
@@ -340,7 +350,7 @@ const I18N = {
     emailPh2:"Email address", send:"Send", emailInvalid:"Enter a valid email.", emailSending:"Sending…",
     emailSent:(x)=>`✅ Sent to ${x}. We'll alert this address on future matches.`, emailFail:"Send failed ",
     browseXlate:"💡 Item names &amp; descriptions here are in Korean. To read them in your language, use your browser's <b>“Translate page”</b> (right-click → Translate, or the translate icon in the address bar).",
-    browseCount:(n)=>`${n.toLocaleString()} total`, noItems:"No found items match.", noName:"(no name)",
+    perPage:"per page", browseCount:(n)=>`${n.toLocaleString()} total`, noItems:"No found items match.", noName:"(no name)",
     prev:"‹ Prev", next:"Next ›", loadFail:"Couldn't load.", mineEmpty:"No reports yet.",
     mineLoadFail:"Couldn't load the list.", bestMatch:"Best match",
     stConfirmed:"Confirmed", stCandidate:"Strong match", stOpen:"Searching",
@@ -656,7 +666,7 @@ function switchTab(name) {
 async function doBrowse(page) {
   const p = new URLSearchParams({
     q: $("bq").value.trim(), region: $("bregion").value,
-    date_from: $("bfrom").value, date_to: $("bto").value, page, size: 24,
+    date_from: $("bfrom").value, date_to: $("bto").value, page, size: $("bsize").value || 10,
   });
   $("browseList").innerHTML = `<span class="muted">${t('loading')}</span>`;
   try {
