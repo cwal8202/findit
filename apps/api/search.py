@@ -7,6 +7,7 @@ eval에서 검증한 로직을 제품 경로로. 가점은 하드필터가 아�
 from __future__ import annotations
 
 import json
+import re
 import urllib.request
 
 from . import gemini
@@ -55,7 +56,16 @@ def browse(q: str = "", region: str = "", date_from: str = "", date_to: str = ""
     """전체 습득물 둘러보기 — BM25 키워드 + 지역/날짜 필터 + 최신순(임베딩·LLM 미사용, 무료·즉시).
 
     반환: {total, page, size, items, regions(집계)}. region 드롭다운은 regions 집계로 구성.
+    외국인 대응: 키워드에 영문이 있으면 한국어로 번역해 검색(습득물 데이터가 한국어라 BM25 매칭되게).
     """
+    if q and re.search(r"[A-Za-z]", q):  # 영문 키워드 → 한국어(예: wallet→지갑)
+        res = gemini.generate_json(
+            f'분실물 검색어 "{q}"를 한국어 습득물 검색 키워드로 번역하세요. '
+            f'설명 없이 JSON만: {{"ko": "<한국어 키워드>"}}'
+        )
+        if res and (res.get("ko") or "").strip():
+            q = res["ko"].strip()
+
     must: list[dict] = []
     if q:
         must.append({"multi_match": {

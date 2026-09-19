@@ -260,7 +260,9 @@ const dispName = (m) => (LANG === "en" && m.name_en) ? m.name_en : m.name;
 const dispDesc = (m) => (LANG === "en" && m.desc_en) ? m.desc_en : cleanDesc(m.description);
 
 function applyLang() {
-  document.documentElement.lang = LANG;
+  // 데이터(물품명·설명)는 한국어라 lang은 항상 "ko" — 그래야 브라우저 '페이지 번역'이 동작(EN 모드여도).
+  // lang="en"으로 두면 크롬이 '이미 영어'로 보고 한국어 항목을 번역하지 않음.
+  document.documentElement.lang = "ko";
   document.querySelectorAll("[data-i18n]").forEach(el => { el.innerHTML = t(el.dataset.i18n); });
   document.querySelectorAll("[data-i18n-ph]").forEach(el => { el.placeholder = t(el.dataset.i18nPh); });
   $("langBtn").textContent = LANG === "ko" ? "EN" : "한국어";
