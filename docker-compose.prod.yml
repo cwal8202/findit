@@ -24,6 +24,22 @@ services:
       retries: 30
     restart: unless-stopped
 
+  postgres:
+    image: postgres:16-alpine
+    container_name: findit-postgres
+    environment:
+      - POSTGRES_USER=findit
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-findit_pw}
+      - POSTGRES_DB=findit
+    volumes:
+      - findit-pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U findit"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
   backend:
     build: .
     image: findit/backend:latest
@@ -31,15 +47,16 @@ services:
     env_file: .env                         # Gemini·SMTP·data.go.kr·Kakao 키
     environment:
       - OPENSEARCH_URL=http://opensearch:9200   # 컨테이너 내부 DNS(로컬호스트 아님)
+      - DATABASE_URL=postgresql://findit:${POSTGRES_PASSWORD:-findit_pw}@postgres:5432/findit
     depends_on:
       opensearch:
         condition: service_healthy
+      postgres:
+        condition: service_healthy
     ports:
       - "80:8000"                          # 외부 80 → 백엔드 8000 (웹+API)
-    volumes:
-      - findit-data:/app/data              # SQLite(findit.db) 영속
     restart: unless-stopped
 
 volumes:
   findit-os-data:
-  findit-data:
+  findit-pg-data:
