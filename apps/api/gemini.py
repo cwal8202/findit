@@ -120,17 +120,26 @@ def embed_texts(texts: list[str], chunk: int = 50) -> list[list[float]]:
     return out
 
 
-def grade(query: str, candidates: list[dict]) -> list[dict]:
-    """top-K 후보를 채점. 반환: [{"id":n, "score":0~100, "reason":".."}]. 실패 시 []."""
+_LANG_NAME = {"en": "English", "ja": "Japanese", "zh": "Chinese", "ko": "Korean"}
+
+
+def grade(query: str, candidates: list[dict], lang: str = "ko") -> list[dict]:
+    """top-K 후보를 채점. 반환: [{"id":n, "score":0~100, "reason":".."}]. 실패 시 [].
+
+    lang!="ko"이면 'reason'을 해당 언어로 생성(외국인 사용자용). 점수 로직은 언어 무관.
+    """
     lines = "\n".join(
         f"{n}. 물품명:{c.get('name','')} / 제목:{c.get('subject','')} / "
         f"분류:{c.get('category','')} / 색상:{c.get('color','')} / "
         f"지역:{c.get('region') or '미상'} / 습득일:{c.get('found_at','')}"
         for n, c in enumerate(candidates)
     )
+    prompt = _GRADE_PROMPT.format(query=query, candidates=lines)
+    if lang != "ko":  # reason만 사용자 언어로(항목 데이터는 한국어 원문 유지)
+        prompt += f"\n\n중요: 'reason' 필드는 반드시 {_LANG_NAME.get(lang, 'English')}로 작성하세요."
     url = f"{_BASE}/{settings.gemini_grade_model}:generateContent?key={settings.gemini_api_key}"
     body = {
-        "contents": [{"parts": [{"text": _GRADE_PROMPT.format(query=query, candidates=lines)}]}],
+        "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {"responseMimeType": "application/json", "temperature": 0},
     }
     try:

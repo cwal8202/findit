@@ -37,6 +37,7 @@ class LostItemRequest(BaseModel):
     text: str                       # 자연어 분실 신고
     lost_date: str | None = None    # 명시하면 우선(없으면 LLM이 문장에서 환산)
     email: str | None = None        # 매칭 시 알림 받을 이메일(신고자별)
+    lang: str = "ko"                # 판정 근거 언어(외국인: "en" 등). 검색은 언어 무관.
 
 
 class LostItemImageRequest(BaseModel):
@@ -45,6 +46,7 @@ class LostItemImageRequest(BaseModel):
     note: str = ""                  # 선택 메모(장소·날짜 등 사진이 모르는 정보)
     lost_date: str | None = None
     email: str | None = None
+    lang: str = "ko"
 
 
 class EmailResultsRequest(BaseModel):

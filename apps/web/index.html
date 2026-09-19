@@ -56,12 +56,18 @@
   .tab { background:#eef2f7; color:#4b5563; font-weight:600; border-radius:10px; padding:9px 16px; }
   .tab:hover { background:#e2e8f0; }
   .tab.active { background:var(--brand); color:#fff; }
+  .langtog { background:#eef2ff; color:var(--brand-d); font-weight:700; border-radius:999px;
+             padding:7px 14px; font-size:13px; }
+  .langtog:hover { background:#e0e7ff; }
   .note { background:#fffbeb; border:1px solid #fde68a; color:#92400e; border-radius:10px;
           padding:9px 12px; font-size:12.5px; line-height:1.5; }
   .bitem { display:flex; gap:12px; padding:12px 0; border-top:1px solid var(--line); }
   .bitem:first-child { border-top:0; }
   .btag { display:inline-block; background:#eef2f7; color:#374151; border-radius:999px;
           padding:2px 9px; font-size:12px; margin-right:4px; }
+  .maplink { display:inline-block; background:#ecfdf5; color:#047857; border:1px solid #a7f3d0;
+             border-radius:8px; padding:4px 11px; font-size:13px; font-weight:600; text-decoration:none; }
+  .maplink:hover { background:#d1fae5; }
   .spin { display:inline-block; width:15px; height:15px; border:2px solid #fff;
           border-top-color:transparent; border-radius:50%; animation:s .7s linear infinite;
           vertical-align:-2px; margin-right:6px; }
@@ -79,84 +85,85 @@
          style="border-radius:14px; box-shadow:0 1px 4px rgba(0,0,0,.12);" />
     <div>
       <h1 style="margin:0;">FindIt</h1>
-      <p style="margin:2px 0 0;">잃어버린 물건을 자연어로 적으면, 습득물 공개데이터에서 찾아드려요.</p>
+      <p style="margin:2px 0 0;" data-i18n="subtitle">잃어버린 물건을 자연어로 적으면, 습득물 공개데이터에서 찾아드려요.</p>
     </div>
+    <button id="langBtn" class="langtog" onclick="toggleLang()" style="margin-left:auto">EN</button>
   </header>
 
   <div class="tabs">
-    <button id="tabFind" class="tab active" onclick="switchTab('find')">🔍 AI로 찾기</button>
-    <button id="tabBrowse" class="tab" onclick="switchTab('browse')">📋 전체 둘러보기</button>
+    <button id="tabFind" class="tab active" onclick="switchTab('find')" data-i18n="tabFind">🔍 AI로 찾기</button>
+    <button id="tabBrowse" class="tab" onclick="switchTab('browse')" data-i18n="tabBrowse">📋 전체 둘러보기</button>
   </div>
 
   <div id="viewFind">
   <div class="card">
-    <h2>분실물 등록</h2>
-    <textarea id="text" placeholder="예: 어제 2호선 지하철에서 검정색 닥스 지갑을 잃어버렸어요. 안에 신분증이랑 카드가 있었어요."></textarea>
-    <input type="email" id="email" placeholder="알림 받을 이메일 (선택) — 나중에 매칭되면 여기로 보내드려요"
+    <h2 data-i18n="register">분실물 등록</h2>
+    <textarea id="text" data-i18n-ph="textPh" placeholder="예: 어제 2호선 지하철에서 검정색 닥스 지갑을 잃어버렸어요. 안에 신분증이랑 카드가 있었어요."></textarea>
+    <input type="email" id="email" data-i18n-ph="emailPh" placeholder="알림 받을 이메일 (선택) — 나중에 매칭되면 여기로 보내드려요"
            style="width:100%; margin-top:10px; border:1px solid var(--line); border-radius:10px; padding:11px; font:inherit;" />
     <div class="row">
-      <label>분실일(선택) <input type="date" id="lostDate" /></label>
-      <button id="go" onclick="registerLost()">찾기</button>
+      <label><span data-i18n="lostDate">분실일(선택)</span> <input type="date" id="lostDate" /></label>
+      <button id="go" onclick="registerLost()" data-i18n="find">찾기</button>
       <span id="hint" class="muted" style="font-size:13px"></span>
     </div>
 
-    <div class="or">— 또는 사진으로 찾기 —</div>
+    <div class="or" data-i18n="orPhoto">— 또는 사진으로 찾기 —</div>
     <div class="row">
       <input type="file" id="photo" accept="image/*" onchange="onPhoto(event)" style="display:none" />
-      <button type="button" class="ghost" onclick="$('photo').click()">📷 사진 선택</button>
+      <button type="button" class="ghost" onclick="$('photo').click()" data-i18n="pickPhoto">📷 사진 선택</button>
       <img id="photoPreview" hidden alt="선택한 사진"
            style="width:52px;height:52px;object-fit:cover;border-radius:8px;border:1px solid var(--line)" />
-      <button id="goImg" onclick="registerImage()" disabled>사진으로 찾기</button>
+      <button id="goImg" onclick="registerImage()" disabled data-i18n="searchPhoto">사진으로 찾기</button>
       <span id="hintImg" class="muted" style="font-size:13px"></span>
     </div>
-    <div class="muted" style="font-size:12px; margin-top:4px">
+    <div class="muted" style="font-size:12px; margin-top:4px" data-i18n="photoNote1">
       잃어버린 물건이 찍힌(또는 비슷한) 사진이면 돼요. 사진엔 없는 <b>장소·날짜</b>는 위 설명/분실일에 적으면 함께 반영돼요.
     </div>
-    <div class="note" style="margin-top:8px">
+    <div class="note" style="margin-top:8px" data-i18n="photoNote2">
       ⚠️ 습득물 데이터는 <b>사진이 없는 경우가 많아요.</b> 사진끼리 비교하는 게 아니라, 사진 속 물건의
       <b>특징(종류·색상 등)을 읽어 텍스트로 검색</b>해요. 그래서 설명·색상·장소를 함께 적을수록 정확해집니다.
     </div>
   </div>
 
   <div class="card" id="resultCard" hidden>
-    <h2>매칭 결과</h2>
+    <h2 data-i18n="matchResult">매칭 결과</h2>
     <div id="result"></div>
   </div>
 
   <div class="card">
     <div style="display:flex; justify-content:space-between; align-items:center">
-      <h2 style="margin:0">내 신고 목록</h2>
-      <button class="ghost" onclick="loadMine()">새로고침</button>
+      <h2 style="margin:0" data-i18n="myReports">내 신고 목록</h2>
+      <button class="ghost" onclick="loadMine()" data-i18n="refresh">새로고침</button>
     </div>
-    <div id="mine" style="margin-top:12px"><span class="muted">불러오는 중…</span></div>
+    <div id="mine" style="margin-top:12px"><span class="muted" data-i18n="loading">불러오는 중…</span></div>
   </div>
   </div><!-- /viewFind -->
 
   <div id="viewBrowse" hidden>
   <div class="card">
-    <h2>전체 습득물 둘러보기</h2>
-    <p class="muted" style="margin:-4px 0 12px; font-size:13px">
+    <h2 data-i18n="browseTitle">전체 습득물 둘러보기</h2>
+    <p class="muted" style="margin:-4px 0 12px; font-size:13px" data-i18n="browseDesc">
       공개데이터로 수집된 습득물을 키워드·지역·날짜로 필터링해 살펴보세요. (AI 판정 없이 즉시 조회)
     </p>
     <div class="row">
-      <input id="bq" placeholder="키워드 (예: 지갑, 에어팟, 카드)" onkeydown="if(event.key==='Enter')doBrowse(1)"
+      <input id="bq" data-i18n-ph="kwPh" placeholder="키워드 (예: 지갑, 에어팟, 카드)" onkeydown="if(event.key==='Enter')doBrowse(1)"
              style="flex:1; min-width:160px; border:1px solid var(--line); border-radius:10px; padding:10px; font:inherit" />
       <select id="bregion" onchange="doBrowse(1)"
               style="border:1px solid var(--line); border-radius:10px; padding:10px; font:inherit">
-        <option value="">전체 지역</option>
+        <option value="" data-i18n="allRegions">전체 지역</option>
       </select>
     </div>
     <div class="row">
-      <label>습득일 <input type="date" id="bfrom" onchange="doBrowse(1)" /></label>
+      <label><span data-i18n="foundDate">습득일</span> <input type="date" id="bfrom" onchange="doBrowse(1)" /></label>
       <label>~ <input type="date" id="bto" onchange="doBrowse(1)" /></label>
-      <button onclick="doBrowse(1)">검색</button>
-      <button class="ghost" onclick="resetBrowse()">초기화</button>
+      <button onclick="doBrowse(1)" data-i18n="searchBtn">검색</button>
+      <button class="ghost" onclick="resetBrowse()" data-i18n="reset">초기화</button>
       <span id="bcount" class="muted" style="font-size:13px"></span>
     </div>
   </div>
 
   <div class="card">
-    <div id="browseList"><span class="muted">불러오는 중…</span></div>
+    <div id="browseList"><span class="muted" data-i18n="loading">불러오는 중…</span></div>
     <div id="browsePager" class="row" style="justify-content:center; margin-top:14px"></div>
   </div>
   </div><!-- /viewBrowse -->
@@ -168,6 +175,96 @@
 const $ = (id) => document.getElementById(id);
 const esc = (s) => (s ?? "").toString().replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 const gradeColor = (g) => g == null ? 'var(--gray)' : g >= 80 ? 'var(--green)' : g >= 50 ? 'var(--amber)' : 'var(--gray)';
+
+// ===== 다국어(i18n) — 외국인 접근성. 검색은 언어 무관(LLM이 한국어로 정규화), UI·안내·판정근거만 전환 =====
+const I18N = {
+  ko: {
+    subtitle:"잃어버린 물건을 자연어로 적으면, 습득물 공개데이터에서 찾아드려요.",
+    tabFind:"🔍 AI로 찾기", tabBrowse:"📋 전체 둘러보기", register:"분실물 등록",
+    textPh:"예: 어제 2호선 지하철에서 검정색 닥스 지갑을 잃어버렸어요. 안에 신분증이랑 카드가 있었어요.",
+    emailPh:"알림 받을 이메일 (선택) — 나중에 매칭되면 여기로 보내드려요",
+    lostDate:"분실일(선택)", find:"찾기", orPhoto:"— 또는 사진으로 찾기 —",
+    pickPhoto:"📷 사진 선택", searchPhoto:"사진으로 찾기",
+    photoNote1:"잃어버린 물건이 찍힌(또는 비슷한) 사진이면 돼요. 사진엔 없는 <b>장소·날짜</b>는 위 설명/분실일에 적으면 함께 반영돼요.",
+    photoNote2:"⚠️ 습득물 데이터는 <b>사진이 없는 경우가 많아요.</b> 사진끼리 비교하는 게 아니라, 사진 속 물건의 <b>특징(종류·색상 등)을 읽어 텍스트로 검색</b>해요. 그래서 설명·색상·장소를 함께 적을수록 정확해집니다.",
+    matchResult:"매칭 결과", myReports:"내 신고 목록", refresh:"새로고침", loading:"불러오는 중…",
+    browseTitle:"전체 습득물 둘러보기", browseDesc:"공개데이터로 수집된 습득물을 키워드·지역·날짜로 필터링해 살펴보세요. (AI 판정 없이 즉시 조회)",
+    kwPh:"키워드 (예: 지갑, 에어팟, 카드)", allRegions:"전체 지역", foundDate:"습득일", searchBtn:"검색", reset:"초기화",
+    hintPipe:"추출 → 지역 → 검색 → 판정 (10초쯤 걸려요)", hintPhoto:"사진 분석 → 검색 → 판정 (10초쯤 걸려요)",
+    needText:"분실물 설명을 입력하세요.", needPhoto:"먼저 사진을 선택하세요.", errPrefix:"오류: ", serverErr:"서버 오류 ",
+    bannerCand:"🔔 유력 후보를 찾았어요. 아래에서 <b>맞는지 확인</b>해주세요. (확정은 본인이!)",
+    bannerOpen:"🕓 지금은 딱 맞는 게 없어요. 접수해두고 새 습득물이 들어오면 자동으로 다시 찾아 알려드려요. (아래에 비슷한 후보가 있으면 확인해보세요)",
+    extracted:"추출", fromPhoto:"사진에서 읽음", searchRegion:"검색 지역", candQueries:"후보 쿼리",
+    candCount:(n)=>`후보 ${n}건 — 본인 물건이 있나요?`, noCand:"후보 없음",
+    photoRead:"올려주신 사진에서 아래 정보를 읽어 검색했어요 👇",
+    mine:"내 물건이에요", notMine:"아니에요", lblHeld:"보관", lblRegion:"지역", lblFound:"습득일", mapLink:"🗺 지도",
+    claimDone:"✅ 확인 완료! 아래 보관기관으로 수령을 문의하세요.", claimHeldAt:"보관장소",
+    claimNoOrg:"보관기관 정보 없음", claimTelFallback:"· 연락처는 아래 포털에서 조회",
+    claimHow:"수령 방법", claimStep1:"보관기관에 전화로 문의", claimStep2:"여권·신분증 지참해 직접 방문(본인 확인)",
+    claimStep3:"지도로 위치 확인", claimTimeline:"습득물은 보통 일정 기간(최대 6개월) 보관 후 처리될 수 있어요 — 되도록 빨리 문의하세요.",
+    claimNote:"※ 신분 확인 등 기관 절차에 따라 본인이 수령하세요. FindIt은 안내만 제공합니다.",
+    emailOfferText:"📧 지금 못 찾아도 괜찮아요. <b>이메일을 남기면</b> 이 결과를 보내드리고, 이후 새 습득물이 들어와 매칭되면 자동으로 알려드려요.",
+    emailPh2:"이메일 주소", send:"보내기", emailInvalid:"유효한 이메일을 입력하세요.", emailSending:"보내는 중…",
+    emailSent:(x)=>`✅ ${x} 로 보냈어요. 이후 매칭되면 이 주소로 알려드릴게요.`, emailFail:"발송 실패 ",
+    browseCount:(n)=>`총 ${n.toLocaleString()}건`, noItems:"조건에 맞는 습득물이 없어요.", noName:"(이름 없음)",
+    prev:"‹ 이전", next:"다음 ›", loadFail:"불러오지 못했어요.", mineEmpty:"아직 등록한 신고가 없어요.",
+    mineLoadFail:"목록을 불러오지 못했어요.", bestMatch:"최고 매칭",
+    stConfirmed:"확인됨", stCandidate:"유력 후보", stOpen:"찾는중",
+  },
+  en: {
+    subtitle:"Describe your lost item in any language — we search Korea's public found-item data.",
+    tabFind:"🔍 AI Search", tabBrowse:"📋 Browse all", register:"Report a lost item",
+    textPh:"e.g., I lost a black DAKS wallet on Seoul subway line 2 yesterday. My ID and cards were inside.",
+    emailPh:"Email for alerts (optional) — we'll notify you when it matches",
+    lostDate:"Date lost (optional)", find:"Search", orPhoto:"— or search by photo —",
+    pickPhoto:"📷 Choose photo", searchPhoto:"Search by photo",
+    photoNote1:"A photo of your item (or a similar one) works. A photo can't show <b>place/date</b>, so add them above.",
+    photoNote2:"⚠️ Many found items have <b>no photo.</b> We don't compare images — we read your photo's <b>features (type, color) and search by text.</b> Adding a description, color and place improves accuracy.",
+    matchResult:"Match results", myReports:"My reports", refresh:"Refresh", loading:"Loading…",
+    browseTitle:"Browse all found items", browseDesc:"Browse collected found items by keyword, region and date. (Instant — no AI grading.)",
+    kwPh:"Keyword (e.g., wallet, AirPods, card)", allRegions:"All regions", foundDate:"Found date", searchBtn:"Search", reset:"Reset",
+    hintPipe:"Extract → region → search → grade (~10s)", hintPhoto:"Reading photo → search → grade (~10s)",
+    needText:"Please describe your lost item.", needPhoto:"Please choose a photo first.", errPrefix:"Error: ", serverErr:"Server error ",
+    bannerCand:"🔔 We found strong candidates. <b>Check below</b> if any is yours. (You confirm — we never auto-claim.)",
+    bannerOpen:"🕓 No exact match yet. We saved your report and will re-check automatically as new items arrive. (See similar candidates below.)",
+    extracted:"Extracted", fromPhoto:"Read from photo", searchRegion:"Search area", candQueries:"Search queries",
+    candCount:(n)=>`${n} candidate(s) — is any of these yours?`, noCand:"No candidates",
+    photoRead:"We read these details from your photo and searched 👇",
+    mine:"This is mine", notMine:"Not mine", lblHeld:"Held at", lblRegion:"Region", lblFound:"Found", mapLink:"🗺 Map",
+    claimDone:"✅ Confirmed! Contact the holding office below to retrieve it.", claimHeldAt:"Held at",
+    claimNoOrg:"No office info", claimTelFallback:"· find the contact via the portal below",
+    claimHow:"How to retrieve", claimStep1:"Call the holding office", claimStep2:"Visit in person with your passport/ID (identity check)",
+    claimStep3:"Check the location on the map", claimTimeline:"Found items are usually held for a limited time (up to ~6 months) before disposal — contact them soon.",
+    claimNote:"※ Retrieval follows the office's own identity-check procedure. FindIt only provides guidance.",
+    emailOfferText:"📧 Not found yet? <b>Leave your email</b> — we'll send you these results and alert you automatically when a new matching item arrives.",
+    emailPh2:"Email address", send:"Send", emailInvalid:"Enter a valid email.", emailSending:"Sending…",
+    emailSent:(x)=>`✅ Sent to ${x}. We'll alert this address on future matches.`, emailFail:"Send failed ",
+    browseCount:(n)=>`${n.toLocaleString()} total`, noItems:"No found items match.", noName:"(no name)",
+    prev:"‹ Prev", next:"Next ›", loadFail:"Couldn't load.", mineEmpty:"No reports yet.",
+    mineLoadFail:"Couldn't load the list.", bestMatch:"Best match",
+    stConfirmed:"Confirmed", stCandidate:"Strong match", stOpen:"Searching",
+  },
+};
+let LANG = "ko";
+try { LANG = localStorage.getItem("findit_lang") || "ko"; } catch (e) {}
+const t = (k, ...a) => { const v = (I18N[LANG] || I18N.ko)[k]; return typeof v === "function" ? v(...a) : (v ?? k); };
+const mapUrl = (m) => "https://www.google.com/maps/search/?api=1&query=" +
+  encodeURIComponent(m.org_name || [m.region, m.dep_place].filter(Boolean).join(" ") || m.dep_place || "");
+
+function applyLang() {
+  document.documentElement.lang = LANG;
+  document.querySelectorAll("[data-i18n]").forEach(el => { el.innerHTML = t(el.dataset.i18n); });
+  document.querySelectorAll("[data-i18n-ph]").forEach(el => { el.placeholder = t(el.dataset.i18nPh); });
+  $("langBtn").textContent = LANG === "ko" ? "EN" : "한국어";
+}
+
+function toggleLang() {
+  LANG = LANG === "ko" ? "en" : "ko";
+  try { localStorage.setItem("findit_lang", LANG); } catch (e) {}
+  applyLang();
+  if (_browseLoaded) { $("bregion").dataset.filled = ""; doBrowse(1); }  // 라벨 갱신
+  loadMine();
+}
 
 function chips(items, cls="") {
   return `<div class="chips">${items.filter(Boolean).map(x=>`<span class="chip ${cls}">${esc(x)}</span>`).join("")}</div>`;
@@ -189,16 +286,17 @@ function matchCard(m, idx) {
          title="클릭하면 크게 보기"
          style="width:56px;height:56px;object-fit:cover;border-radius:8px;border:1px solid var(--line);flex:0 0 56px;cursor:zoom-in" />`
     : '';
-  const btns = `<div style="margin-top:8px; display:flex; gap:6px">
-      <button onclick="confirmMatch(${idx})" style="background:var(--green);padding:5px 12px;border-radius:8px;font-size:13px">내 물건이에요</button>
-      <button onclick="dismissMatch(${idx})" class="ghost" style="padding:5px 12px;border-radius:8px;font-size:13px">아니에요</button>
+  const btns = `<div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap">
+      <button onclick="confirmMatch(${idx})" style="background:var(--green);padding:5px 12px;border-radius:8px;font-size:13px">${t('mine')}</button>
+      <button onclick="dismissMatch(${idx})" class="ghost" style="padding:5px 12px;border-radius:8px;font-size:13px">${t('notMine')}</button>
+      ${(m.org_name||m.region)?`<a href="${mapUrl(m)}" target="_blank" class="maplink">${t('mapLink')}</a>`:''}
     </div>`;
   return `<div class="match" data-idx="${idx}">
     <div class="grade" style="background:${gradeColor(g)}">${g==null?'–':g}</div>
     ${thumb}
     <div class="m-body">
       <div class="m-title">${esc(m.name)} <span class="muted">/ ${esc(m.color)}</span></div>
-      <div class="m-meta">${esc(m.category)} · 보관: ${esc(m.dep_place)||'-'} · 지역: ${esc(m.region)||'-'} · 습득일: ${esc(m.found_at)||'-'}</div>
+      <div class="m-meta">${esc(m.category)} · ${t('lblHeld')}: ${esc(m.dep_place)||'-'} · ${t('lblRegion')}: ${esc(m.region)||'-'} · ${t('lblFound')}: ${esc(m.found_at)||'-'}</div>
       ${(m.org_name||m.tel) ? `<div class="m-meta">🏛 ${esc(m.org_name)||'-'}${m.tel?` · ☎ <a href="tel:${esc(m.tel)}">${esc(m.tel)}</a>`:''}</div>` : ''}
       ${cleanDesc(m.description) ? `<div class="m-reason">📝 ${esc(cleanDesc(m.description).slice(0,140))}${cleanDesc(m.description).length>140?'…':''}</div>` : ''}
       ${m.reason ? `<div class="m-reason">💬 ${esc(m.reason)}</div>` : ''}
@@ -231,20 +329,26 @@ async function dismissMatch(idx) {
 function claimGuide(m) {
   const img = validImg(m.image_url);
   const thumb = img ? `<img class="thumb" data-full="${esc(img)}" src="${esc(img)}" style="width:72px;height:72px;object-fit:cover;border-radius:8px;flex:0 0 72px;cursor:zoom-in" />` : '';
-  return `<div class="banner matched">✅ 확인 완료! 아래 보관기관으로 수령을 문의하세요.</div>
+  return `<div class="banner matched">${t('claimDone')}</div>
     <div class="match">
       ${thumb}
       <div class="m-body">
         <div class="m-title">${esc(m.name)} <span class="muted">/ ${esc(m.color)}</span></div>
-        <div class="m-meta">보관장소: ${esc(m.dep_place)||'-'} · 지역: ${esc(m.region)||'-'} · 습득일: ${esc(m.found_at)||'-'}</div>
+        <div class="m-meta">${t('claimHeldAt')}: ${esc(m.dep_place)||'-'} · ${t('lblRegion')}: ${esc(m.region)||'-'} · ${t('lblFound')}: ${esc(m.found_at)||'-'}</div>
         <div style="margin-top:8px; font-size:14px">
-          🏛 <b>${esc(m.org_name)||'보관기관 정보 없음'}</b>
-          ${m.tel ? `· ☎ <a href="tel:${esc(m.tel)}">${esc(m.tel)}</a>` : '· 연락처는 아래 포털에서 조회'}
+          🏛 <b>${esc(m.org_name)||t('claimNoOrg')}</b>
+          ${m.tel ? `· ☎ <a href="tel:${esc(m.tel)}">${esc(m.tel)}</a>` : '· '+t('claimTelFallback').replace(/^· /,'')}
         </div>
-        <div style="margin-top:6px; font-size:13px">🔗 공식 조회: <a href="https://www.lost112.go.kr" target="_blank">lost112.go.kr</a> (경찰청 유실물 통합포털)</div>
+        <ol style="margin:10px 0 0; padding-left:20px; font-size:13px; line-height:1.7">
+          <li><b>${t('claimStep1')}</b>${m.tel?` — ☎ <a href="tel:${esc(m.tel)}">${esc(m.tel)}</a>`:''}</li>
+          <li>${t('claimStep2')}</li>
+          <li>${t('claimStep3')} — <a href="${mapUrl(m)}" target="_blank">${t('mapLink')}</a></li>
+        </ol>
+        <div style="margin-top:8px; font-size:13px">🔗 <a href="https://www.lost112.go.kr" target="_blank">lost112.go.kr</a> (National Police lost &amp; found portal)</div>
       </div>
     </div>
-    <p class="muted" style="font-size:13px">※ 신분 확인 등 기관 절차에 따라 본인이 수령하세요. FindIt은 안내만 제공합니다.</p>`;
+    <p class="muted" style="font-size:13px; margin-top:10px">⏳ ${t('claimTimeline')}</p>
+    <p class="muted" style="font-size:13px">${t('claimNote')}</p>`;
 }
 
 function renderResult(d, userPhoto) {
@@ -252,20 +356,20 @@ function renderResult(d, userPhoto) {
   const ex = d.extracted || {};
   const exChips = [ex.item, ex.brand, ex.color, ex.category && ("분류:"+ex.category), ex.place_context, ex.lost_date, ex.features];
   const banner = d.status === "candidate"
-    ? `<div class="banner candidate">🔔 유력 후보를 찾았어요. 아래에서 <b>맞는지 확인</b>해주세요. (확정은 본인이!)</div>`
-    : `<div class="banner open">🕓 지금은 딱 맞는 게 없어요. 접수해두고 새 습득물이 들어오면 자동으로 다시 찾아 알려드려요. (아래에 비슷한 후보가 있으면 확인해보세요)</div>`;
+    ? `<div class="banner candidate">${t('bannerCand')}</div>`
+    : `<div class="banner open">${t('bannerOpen')}</div>`;
   const photoBlock = userPhoto
     ? `<div style="margin-bottom:10px; display:flex; gap:10px; align-items:center">
          <img src="${userPhoto}" style="width:72px;height:72px;object-fit:cover;border-radius:10px;border:1px solid var(--line)" />
-         <div class="muted" style="font-size:12px">올려주신 사진에서 아래 정보를 읽어 검색했어요 👇</div>
+         <div class="muted" style="font-size:12px">${t('photoRead')}</div>
        </div>` : "";
   $("result").innerHTML =
     `${banner}${photoBlock}
-     <div style="margin-bottom:8px"><b>${userPhoto ? "사진에서 읽음" : "추출"}</b> ${chips(exChips)}</div>
-     ${d.region_set?.length ? `${regionExplain(ex)}<div style="margin-bottom:8px"><b>검색 지역</b> ${chips(d.region_set, "k")}</div>` : ""}
-     <div style="margin-bottom:8px"><b>후보 쿼리</b> ${chips(d.queries)}</div>
-     <div style="margin-top:12px"><b>후보 ${d.count}건 — 본인 물건이 있나요?</b></div>
-     ${(d.matches||[]).slice(0,6).map((m,i)=>matchCard(m,i)).join("") || '<span class="muted">후보 없음</span>'}
+     <div style="margin-bottom:8px"><b>${userPhoto ? t('fromPhoto') : t('extracted')}</b> ${chips(exChips)}</div>
+     ${d.region_set?.length ? `${regionExplain(ex)}<div style="margin-bottom:8px"><b>${t('searchRegion')}</b> ${chips(d.region_set, "k")}</div>` : ""}
+     <div style="margin-bottom:8px"><b>${t('candQueries')}</b> ${chips(d.queries)}</div>
+     <div style="margin-top:12px"><b>${t('candCount', d.count)}</b></div>
+     ${(d.matches||[]).slice(0,6).map((m,i)=>matchCard(m,i)).join("") || `<span class="muted">${t('noCand')}</span>`}
      ${emailOffer()}`;
   $("resultCard").hidden = false;
   $("resultCard").scrollIntoView({ behavior:"smooth", block:"nearest" });
@@ -274,22 +378,28 @@ function renderResult(d, userPhoto) {
 
 function regionExplain(ex) {
   const place = (ex && ex.place_context || "").trim();
-  const where = place ? `<b>${esc(place)}</b>에서 잃어버리셨네요. ` : "";
-  return `<div class="note" style="background:#eff6ff; border-color:#bfdbfe; color:#1e40af; margin-bottom:8px">
-      📍 ${where}분실물은 <b>이동 경로(노선·교통편)를 따라</b> 다른 지역에서 발견되기도 해요.
-      그래서 아래 지역들까지 <b>넓게</b> 살펴 순위에 반영했어요. (좁히지 않고 가점만 — 놓치지 않으려고요)
-    </div>`;
+  let msg;
+  if (LANG === "en") {
+    const where = place ? `You lost it around <b>${esc(place)}</b>. ` : "";
+    msg = `📍 ${where}In Korea, lost items often <b>travel along the route</b> (a subway or bus line) and turn up in other districts.
+      You may not know where that line goes — so we searched <b>every district it passes through</b> (below) and
+      <b>boosted</b> them in ranking (we don't filter — nothing gets excluded).`;
+  } else {
+    const where = place ? `<b>${esc(place)}</b>에서 잃어버리셨네요. ` : "";
+    msg = `📍 ${where}분실물은 <b>이동 경로(노선·교통편)를 따라</b> 다른 지역에서 발견되기도 해요.
+      그래서 아래 지역들까지 <b>넓게</b> 살펴 순위에 반영했어요. (좁히지 않고 가점만 — 놓치지 않으려고요)`;
+  }
+  return `<div class="note" style="background:#eff6ff; border-color:#bfdbfe; color:#1e40af; margin-bottom:8px">${msg}</div>`;
 }
 
 function emailOffer() {
   if ($("email").value.trim()) return "";   // 이미 이메일 입력됨 → 자동 알림 대상
   return `<div id="emailOffer" style="margin-top:14px; border-top:1px solid var(--line); padding-top:14px">
-      <div style="font-size:13px; margin-bottom:8px">📧 지금 못 찾아도 괜찮아요. <b>이메일을 남기면</b> 이 결과를 보내드리고,
-        이후 새 습득물이 들어와 매칭되면 자동으로 알려드려요.</div>
+      <div style="font-size:13px; margin-bottom:8px">${t('emailOfferText')}</div>
       <div class="row" style="margin-top:0">
-        <input id="emailResult" type="email" placeholder="이메일 주소"
+        <input id="emailResult" type="email" placeholder="${t('emailPh2')}"
                style="flex:1; min-width:160px; border:1px solid var(--line); border-radius:10px; padding:10px; font:inherit" />
-        <button onclick="sendResultsEmail()">보내기</button>
+        <button onclick="sendResultsEmail()">${t('send')}</button>
         <span id="emailMsg" class="muted" style="font-size:13px"></span>
       </div>
     </div>`;
@@ -297,33 +407,33 @@ function emailOffer() {
 
 async function sendResultsEmail() {
   const email = ($("emailResult").value || "").trim();
-  if (!email.includes("@")) { $("emailMsg").textContent = "유효한 이메일을 입력하세요."; return; }
-  $("emailMsg").textContent = "보내는 중…";
+  if (!email.includes("@")) { $("emailMsg").textContent = t('emailInvalid'); return; }
+  $("emailMsg").textContent = t('emailSending');
   try {
     const res = await fetch(`/lost-items/${_lid}/email`, {
       method:"POST", headers:{"Content-Type":"application/json"},
       body: JSON.stringify({ email, matches: _matches }) });
-    if (!res.ok) throw new Error("발송 실패 " + res.status);
-    $("emailOffer").innerHTML = `<div class="banner matched" style="margin:0">✅ ${esc(email)} 로 보냈어요. 이후 매칭되면 이 주소로 알려드릴게요.</div>`;
+    if (!res.ok) throw new Error(t('emailFail') + res.status);
+    $("emailOffer").innerHTML = `<div class="banner matched" style="margin:0">${t('emailSent', esc(email))}</div>`;
   } catch (e) {
-    $("emailMsg").textContent = "오류: " + e.message;
+    $("emailMsg").textContent = t('errPrefix') + e.message;
   }
 }
 
 async function registerLost() {
   const text = $("text").value.trim();
-  if (!text) { $("hint").textContent = "분실물 설명을 입력하세요."; return; }
+  if (!text) { $("hint").textContent = t('needText'); return; }
   const btn = $("go"); btn.disabled = true;
-  const orig = btn.textContent; btn.innerHTML = '<span class="spin"></span>찾는 중…';
-  $("hint").textContent = "추출 → 지역 → 검색 → 판정 (10초쯤 걸려요)";
+  const orig = btn.textContent; btn.innerHTML = '<span class="spin"></span>' + (LANG === 'en' ? 'Searching…' : '찾는 중…');
+  $("hint").textContent = t('hintPipe');
   try {
-    const body = { text, lost_date: $("lostDate").value || null, email: $("email").value.trim() || null };
+    const body = { text, lost_date: $("lostDate").value || null, email: $("email").value.trim() || null, lang: LANG };
     const res = await fetch("/lost-items", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(body) });
-    if (!res.ok) throw new Error("서버 오류 " + res.status);
+    if (!res.ok) throw new Error(t('serverErr') + res.status);
     renderResult(await res.json());
     $("hint").textContent = "";
   } catch (e) {
-    $("hint").textContent = "오류: " + e.message;
+    $("hint").textContent = t('errPrefix') + e.message;
   } finally {
     btn.disabled = false; btn.textContent = orig;
   }
@@ -346,20 +456,20 @@ function onPhoto(e) {
 }
 
 async function registerImage() {
-  if (!_photoB64) { $("hintImg").textContent = "먼저 사진을 선택하세요."; return; }
+  if (!_photoB64) { $("hintImg").textContent = t('needPhoto'); return; }
   const btn = $("goImg"); btn.disabled = true;
-  const orig = btn.textContent; btn.innerHTML = '<span class="spin"></span>찾는 중…';
-  $("hintImg").textContent = "사진 분석 → 검색 → 판정 (10초쯤 걸려요)";
+  const orig = btn.textContent; btn.innerHTML = '<span class="spin"></span>' + (LANG === 'en' ? 'Searching…' : '찾는 중…');
+  $("hintImg").textContent = t('hintPhoto');
   try {
     const body = { image_b64: _photoB64, mime: _photoMime,
                    note: $("text").value.trim(), lost_date: $("lostDate").value || null,
-                   email: $("email").value.trim() || null };
+                   email: $("email").value.trim() || null, lang: LANG };
     const res = await fetch("/lost-items/image", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(body) });
-    if (!res.ok) throw new Error("서버 오류 " + res.status);
+    if (!res.ok) throw new Error(t('serverErr') + res.status);
     renderResult(await res.json(), _photoDataUrl);
     $("hintImg").textContent = "";
   } catch (e) {
-    $("hintImg").textContent = "오류: " + e.message;
+    $("hintImg").textContent = t('errPrefix') + e.message;
   } finally {
     btn.disabled = false; btn.textContent = orig;
   }
@@ -368,24 +478,26 @@ async function registerImage() {
 async function loadMine() {
   try {
     const items = await (await fetch("/lost-items")).json();
-    if (!items.length) { $("mine").innerHTML = '<span class="muted">아직 등록한 신고가 없어요.</span>'; return; }
+    if (!items.length) { $("mine").innerHTML = `<span class="muted">${t('mineEmpty')}</span>`; return; }
     $("mine").innerHTML = items.map(it => {
       const bm = it.best_match;
       const when = (it.created_at||"").slice(0,10);
+      const stLabel = it.status==='confirmed'?t('stConfirmed'):(it.status==='candidate'||it.status==='matched')?t('stCandidate'):t('stOpen');
       return `<div class="mine-item">
         <div style="display:flex; justify-content:space-between; gap:10px">
           <div style="min-width:0">
             <div>${esc(it.text)}</div>
-            <div class="m-meta">${when}${bm ? " · 최고 매칭: "+esc(bm.name)+" (grade "+(it.best_grade??"-")+")" : ""}</div>
+            <div class="m-meta">${when}${bm ? " · "+t('bestMatch')+": "+esc(bm.name)+" (grade "+(it.best_grade??"-")+")" : ""}</div>
           </div>
-          <span class="status ${it.status==='matched'?'candidate':it.status}">${it.status==='confirmed'?'확인됨':(it.status==='candidate'||it.status==='matched')?'유력 후보':'찾는중'}</span>
+          <span class="status ${it.status==='matched'?'candidate':it.status}">${stLabel}</span>
         </div>
       </div>`;
     }).join("");
   } catch (e) {
-    $("mine").innerHTML = '<span class="muted">목록을 불러오지 못했어요.</span>';
+    $("mine").innerHTML = `<span class="muted">${t('mineLoadFail')}</span>`;
   }
 }
+applyLang();
 loadMine();
 
 // ===== 탭 + 전체 둘러보기 =====
@@ -405,12 +517,12 @@ async function doBrowse(page) {
     q: $("bq").value.trim(), region: $("bregion").value,
     date_from: $("bfrom").value, date_to: $("bto").value, page, size: 24,
   });
-  $("browseList").innerHTML = '<span class="muted">불러오는 중…</span>';
+  $("browseList").innerHTML = `<span class="muted">${t('loading')}</span>`;
   try {
     const d = await (await fetch("/found-items/browse?" + p)).json();
     renderBrowse(d);
   } catch (e) {
-    $("browseList").innerHTML = '<span class="muted">불러오지 못했어요.</span>';
+    $("browseList").innerHTML = `<span class="muted">${t('loadFail')}</span>`;
   }
 }
 
@@ -423,14 +535,14 @@ function renderBrowse(d) {
   const sel = $("bregion");
   if (d.regions?.length && sel.dataset.filled !== "1") {  // 지역 드롭다운 최초 1회 채움
     const cur = sel.value;
-    sel.innerHTML = '<option value="">전체 지역</option>' +
+    sel.innerHTML = `<option value="">${t('allRegions')}</option>` +
       d.regions.slice().sort((a, b) => b.count - a.count)
         .map(r => `<option value="${esc(r.name)}">${esc(r.name)} (${r.count})</option>`).join("");
     sel.value = cur; sel.dataset.filled = "1";
   }
-  $("bcount").textContent = `총 ${(d.total || 0).toLocaleString()}건`;
+  $("bcount").textContent = t('browseCount', d.total || 0);
   $("browseList").innerHTML = (d.items || []).map(browseItem).join("")
-    || '<span class="muted">조건에 맞는 습득물이 없어요.</span>';
+    || `<span class="muted">${t('noItems')}</span>`;
   renderPager(d.page || 1, Math.ceil((d.total || 0) / (d.size || 24)));
 }
 
@@ -443,9 +555,9 @@ function browseItem(m) {
     : '';
   return `<div class="bitem">${thumb}
     <div class="m-body">
-      <div class="m-title">${esc(m.name) || "(이름 없음)"} <span class="muted">/ ${esc(m.color) || "-"}</span></div>
-      <div class="m-meta">${esc(m.category) || "-"} · 지역: ${esc(m.region) || "-"} · 습득일: ${esc(m.found_at) || "-"}</div>
-      ${(m.org_name || m.tel) ? `<div class="m-meta">🏛 ${esc(m.org_name) || "-"}${m.tel ? ` · ☎ <a href="tel:${esc(m.tel)}">${esc(m.tel)}</a>` : ""}</div>` : ""}
+      <div class="m-title">${esc(m.name) || t('noName')} <span class="muted">/ ${esc(m.color) || "-"}</span></div>
+      <div class="m-meta">${esc(m.category) || "-"} · ${t('lblRegion')}: ${esc(m.region) || "-"} · ${t('lblFound')}: ${esc(m.found_at) || "-"}</div>
+      ${(m.org_name || m.tel) ? `<div class="m-meta">🏛 ${esc(m.org_name) || "-"}${m.tel ? ` · ☎ <a href="tel:${esc(m.tel)}">${esc(m.tel)}</a>` : ""}${(m.org_name||m.region)?` · <a href="${mapUrl(m)}" target="_blank">${t('mapLink')}</a>`:""}</div>` : ""}
       ${cleanDesc(m.description) ? `<div class="m-reason">📝 ${esc(cleanDesc(m.description).slice(0, 120))}${cleanDesc(m.description).length > 120 ? "…" : ""}</div>` : ""}
     </div></div>`;
 }
@@ -453,9 +565,9 @@ function browseItem(m) {
 function renderPager(page, pages) {
   if (!pages || pages <= 1) { $("browsePager").innerHTML = ""; return; }
   const btn = (p, label, dis) => `<button class="ghost" ${dis ? "disabled" : ""} onclick="doBrowse(${p})" style="padding:6px 12px">${label}</button>`;
-  $("browsePager").innerHTML = btn(page - 1, "‹ 이전", page <= 1)
+  $("browsePager").innerHTML = btn(page - 1, t('prev'), page <= 1)
     + `<span class="muted" style="align-self:center; font-size:13px; margin:0 4px">${page} / ${pages}</span>`
-    + btn(page + 1, "다음 ›", page >= pages);
+    + btn(page + 1, t('next'), page >= pages);
 }
 </script>
 </body>

@@ -23,6 +23,7 @@ MERGED_TOPK = 12
 class AgentState(TypedDict, total=False):
     text: str
     lost_date: str
+    lang: str
     extracted: dict
     region_set: list
     queries: list
@@ -63,7 +64,7 @@ def n_grade(state: AgentState) -> dict:
     cands = state.get("candidates") or []
     if not cands:
         return {"matches": []}
-    gmap = {int(x["id"]): x for x in gemini.grade(state["text"], cands) if "id" in x}
+    gmap = {int(x["id"]): x for x in gemini.grade(state["text"], cands, state.get("lang", "ko")) if "id" in x}
     for i, it in enumerate(cands):
         g = gmap.get(i)
         it["grade"] = g.get("score") if g else None
@@ -91,8 +92,8 @@ def _build():
 GRAPH = _build()
 
 
-def run(text: str, lost_date: str | None = None) -> dict:
-    return GRAPH.invoke({"text": text, "lost_date": lost_date or ""})
+def run(text: str, lost_date: str | None = None, lang: str = "ko") -> dict:
+    return GRAPH.invoke({"text": text, "lost_date": lost_date or "", "lang": lang})
 
 
 def _synth_text(ex: dict, note: str = "") -> str:
@@ -103,14 +104,14 @@ def _synth_text(ex: dict, note: str = "") -> str:
 
 
 def run_image(image_b64: str, mime: str = "image/jpeg",
-              note: str = "", lost_date: str | None = None) -> dict:
+              note: str = "", lost_date: str | None = None, lang: str = "ko") -> dict:
     """사진(+선택 메모) 신고 → Vision 추출 → 텍스트와 동일 파이프라인(라우팅~grade).
 
     사진에는 문장이 없으므로 추출 필드로 검색용 text를 합성해 grade/저장/표시에 재사용.
     """
     ex = extract_mod.extract_image(image_b64, mime, note=note, lost_date=lost_date)
     text = _synth_text(ex, note)
-    state: AgentState = {"text": text, "extracted": ex}
+    state: AgentState = {"text": text, "extracted": ex, "lang": lang}
     state.update(n_route(state))
     state.update(n_fanout(state))
     state.update(n_search(state))

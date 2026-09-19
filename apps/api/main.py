@@ -119,7 +119,7 @@ def register_lost_item(req: LostItemRequest) -> MatchResponse:
     """
     from apps.agent import graph as agent_graph
 
-    result = agent_graph.run(req.text, req.lost_date)
+    result = agent_graph.run(req.text, req.lost_date, req.lang or "ko")
     return _persist_and_respond(req.text, result, req.email or "")
 
 
@@ -131,7 +131,8 @@ def register_lost_item_image(req: LostItemImageRequest) -> MatchResponse:
     """
     from apps.agent import graph as agent_graph
 
-    result = agent_graph.run_image(req.image_b64, req.mime, note=req.note, lost_date=req.lost_date)
+    result = agent_graph.run_image(req.image_b64, req.mime, note=req.note,
+                                   lost_date=req.lost_date, lang=req.lang or "ko")
     return _persist_and_respond(result.get("text", "사진 신고"), result, req.email or "")
 
 
