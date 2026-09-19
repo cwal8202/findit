@@ -262,7 +262,7 @@ function renderResult(d, userPhoto) {
   $("result").innerHTML =
     `${banner}${photoBlock}
      <div style="margin-bottom:8px"><b>${userPhoto ? "사진에서 읽음" : "추출"}</b> ${chips(exChips)}</div>
-     ${d.region_set?.length ? `<div style="margin-bottom:8px"><b>검색 지역</b> ${chips(d.region_set, "k")}</div>` : ""}
+     ${d.region_set?.length ? `${regionExplain(ex)}<div style="margin-bottom:8px"><b>검색 지역</b> ${chips(d.region_set, "k")}</div>` : ""}
      <div style="margin-bottom:8px"><b>후보 쿼리</b> ${chips(d.queries)}</div>
      <div style="margin-top:12px"><b>후보 ${d.count}건 — 본인 물건이 있나요?</b></div>
      ${(d.matches||[]).slice(0,6).map((m,i)=>matchCard(m,i)).join("") || '<span class="muted">후보 없음</span>'}
@@ -270,6 +270,15 @@ function renderResult(d, userPhoto) {
   $("resultCard").hidden = false;
   $("resultCard").scrollIntoView({ behavior:"smooth", block:"nearest" });
   loadMine();
+}
+
+function regionExplain(ex) {
+  const place = (ex && ex.place_context || "").trim();
+  const where = place ? `<b>${esc(place)}</b>에서 잃어버리셨네요. ` : "";
+  return `<div class="note" style="background:#eff6ff; border-color:#bfdbfe; color:#1e40af; margin-bottom:8px">
+      📍 ${where}분실물은 <b>이동 경로(노선·교통편)를 따라</b> 다른 지역에서 발견되기도 해요.
+      그래서 아래 지역들까지 <b>넓게</b> 살펴 순위에 반영했어요. (좁히지 않고 가점만 — 놓치지 않으려고요)
+    </div>`;
 }
 
 function emailOffer() {
