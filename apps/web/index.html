@@ -253,6 +253,9 @@ try { LANG = localStorage.getItem("findit_lang") || "ko"; } catch (e) {}
 const t = (k, ...a) => { const v = (I18N[LANG] || I18N.ko)[k]; return typeof v === "function" ? v(...a) : (v ?? k); };
 const mapUrl = (m) => "https://www.google.com/maps/search/?api=1&query=" +
   encodeURIComponent(m.org_name || [m.region, m.dep_place].filter(Boolean).join(" ") || m.dep_place || "");
+// EN 모드: grade가 함께 만든 영어 물품명·설명 사용(없으면 한국어 원문). 둘러보기 항목은 번역 없음.
+const dispName = (m) => (LANG === "en" && m.name_en) ? m.name_en : m.name;
+const dispDesc = (m) => (LANG === "en" && m.desc_en) ? m.desc_en : cleanDesc(m.description);
 
 function applyLang() {
   document.documentElement.lang = LANG;
@@ -298,10 +301,10 @@ function matchCard(m, idx) {
     <div class="grade" style="background:${gradeColor(g)}">${g==null?'–':g}</div>
     ${thumb}
     <div class="m-body">
-      <div class="m-title">${esc(m.name)} <span class="muted">/ ${esc(m.color)}</span></div>
+      <div class="m-title">${esc(dispName(m))} <span class="muted">/ ${esc(m.color)}</span></div>
       <div class="m-meta">${esc(m.category)} · ${t('lblHeld')}: ${esc(m.dep_place)||'-'} · ${t('lblRegion')}: ${esc(m.region)||'-'} · ${t('lblFound')}: ${esc(m.found_at)||'-'}</div>
       ${(m.org_name||m.tel) ? `<div class="m-meta">🏛 ${esc(m.org_name)||'-'}${m.tel?` · ☎ <a href="tel:${esc(m.tel)}">${esc(m.tel)}</a>`:''}</div>` : ''}
-      ${cleanDesc(m.description) ? `<div class="m-reason">📝 ${esc(cleanDesc(m.description).slice(0,140))}${cleanDesc(m.description).length>140?'…':''}</div>` : ''}
+      ${dispDesc(m) ? `<div class="m-reason">📝 ${esc(dispDesc(m).slice(0,160))}${dispDesc(m).length>160?'…':''}</div>` : ''}
       ${m.reason ? `<div class="m-reason">💬 ${esc(m.reason)}</div>` : ''}
       ${m.visual_score != null ? `<div class="m-reason" style="color:${gradeColor(m.visual_score)}"><b>📷 ${t('visualSim')} ${m.visual_score}</b>${m.visual_reason ? ` <span class="muted">— ${esc(m.visual_reason)}</span>` : ''}</div>` : ''}
       ${btns}
@@ -337,7 +340,7 @@ function claimGuide(m) {
     <div class="match">
       ${thumb}
       <div class="m-body">
-        <div class="m-title">${esc(m.name)} <span class="muted">/ ${esc(m.color)}</span></div>
+        <div class="m-title">${esc(dispName(m))} <span class="muted">/ ${esc(m.color)}</span></div>
         <div class="m-meta">${t('claimHeldAt')}: ${esc(m.dep_place)||'-'} · ${t('lblRegion')}: ${esc(m.region)||'-'} · ${t('lblFound')}: ${esc(m.found_at)||'-'}</div>
         <div style="margin-top:8px; font-size:14px">
           🏛 <b>${esc(m.org_name)||t('claimNoOrg')}</b>

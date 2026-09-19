@@ -165,8 +165,14 @@ def grade(query: str, candidates: list[dict], lang: str = "ko") -> list[dict]:
         for n, c in enumerate(candidates)
     )
     prompt = _GRADE_PROMPT.format(query=query, candidates=lines)
-    if lang != "ko":  # reason만 사용자 언어로(항목 데이터는 한국어 원문 유지)
-        prompt += f"\n\n중요: 'reason' 필드는 반드시 {_LANG_NAME.get(lang, 'English')}로 작성하세요."
+    if lang != "ko":  # 근거 + 물품명/설명을 사용자 언어로(원본은 한국어라 얹어서 번역)
+        lname = _LANG_NAME.get(lang, "English")
+        prompt += (
+            f'\n\n중요: 각 항목 JSON에 아래를 모두 포함하고 값은 {lname}로 작성하세요 — '
+            f'"reason"(한 줄 근거), "name_en"(물품의 간결한 {lname} 이름, 예: "Black leather wallet"), '
+            f'"desc_en"(한 줄 {lname} 설명; 특이사항 있으면 반영). '
+            f'즉 각 항목: {{"id":n, "score":0~100, "reason":"..", "name_en":"..", "desc_en":".."}}.'
+        )
     url = f"{_BASE}/{settings.gemini_grade_model}:generateContent?key={settings.gemini_api_key}"
     body = {
         "contents": [{"parts": [{"text": prompt}]}],

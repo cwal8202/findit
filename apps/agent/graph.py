@@ -71,6 +71,11 @@ def n_grade(state: AgentState) -> dict:
         g = gmap.get(i)
         it["grade"] = g.get("score") if g else None
         it["reason"] = g.get("reason") if g else None
+        if g:  # EN 등 비-한국어: 물품명/설명 영어 번역 얹음(원본은 한국어 유지)
+            if g.get("name_en"):
+                it["name_en"] = g.get("name_en")
+            if g.get("desc_en"):
+                it["desc_en"] = g.get("desc_en")
     cands.sort(key=lambda it: -(it["grade"] if it["grade"] is not None else -1))
     return {"matches": cands}
 

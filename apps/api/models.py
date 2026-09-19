@@ -25,6 +25,8 @@ class FoundItem(BaseModel):
     reason: str | None = None   # LLM 근거
     visual_score: int | None = None   # 사진 대조 0~100 (사진 검색 + 후보에 사진 있을 때만)
     visual_reason: str | None = None  # 사진 대조 근거
+    name_en: str | None = None        # 물품명 번역 (외국인 모드, grade가 함께 생성)
+    desc_en: str | None = None        # 설명 한 줄 번역 (외국인 모드)
 
 
 class SearchResponse(BaseModel):
