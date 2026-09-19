@@ -1,0 +1,45 @@
+# FindIt 프로덕션 배포 — OpenSearch(nori) + 백엔드(FastAPI+웹, 웹까지 서빙).
+# 실행:  docker compose -f docker-compose.prod.yml up -d --build
+# 접속:  http://<서버IP>   (백엔드 80 → 8000)
+# 시크릿: 같은 폴더 .env (.env.example 참고). OpenSearch는 외부에 포트 노출 안 함(내부 전용).
+services:
+  opensearch:
+    build: ./infra/opensearch
+    image: findit/opensearch-nori:2.17.1
+    container_name: findit-opensearch
+    environment:
+      - discovery.type=single-node
+      - DISABLE_SECURITY_PLUGIN=true
+      - bootstrap.memory_lock=true
+      - "OPENSEARCH_JAVA_OPTS=-Xms2g -Xmx2g"   # 8GB VPS 기준 heap 2GB(나머지는 kNN·페이지캐시)
+    ulimits:
+      memlock: { soft: -1, hard: -1 }
+      nofile: { soft: 65536, hard: 65536 }
+    volumes:
+      - findit-os-data:/usr/share/opensearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+    restart: unless-stopped
+
+  backend:
+    build: .
+    image: findit/backend:latest
+    container_name: findit-backend
+    env_file: .env                         # Gemini·SMTP·data.go.kr·Kakao 키
+    environment:
+      - OPENSEARCH_URL=http://opensearch:9200   # 컨테이너 내부 DNS(로컬호스트 아님)
+    depends_on:
+      opensearch:
+        condition: service_healthy
+    ports:
+      - "80:8000"                          # 외부 80 → 백엔드 8000 (웹+API)
+    volumes:
+      - findit-data:/app/data              # SQLite(findit.db) 영속
+    restart: unless-stopped
+
+volumes:
+  findit-os-data:
+  findit-data:

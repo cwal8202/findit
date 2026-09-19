@@ -9,14 +9,30 @@
 from __future__ import annotations
 
 import json
+import os
+import urllib.error
 import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 CORPUS = ROOT / "data" / "corpus.json"
 CACHE = ROOT / "data" / "emb_cache.json"
-OS_URL = "http://localhost:9200"
+MAPPING = ROOT.parent / "infra" / "opensearch" / "mappings" / "found_items.json"
+OS_URL = os.environ.get("OPENSEARCH_URL", "http://localhost:9200")  # 배포 시 http://opensearch:9200
 INDEX = "found_items"
+
+
+def ensure_index() -> None:
+    """인덱스 없으면 매핑 적용해 생성(배포에서 별도 curl 불필요)."""
+    try:
+        urllib.request.urlopen(urllib.request.Request(f"{OS_URL}/{INDEX}", method="HEAD"), timeout=30)
+        print(f"인덱스 {INDEX} 이미 존재")
+        return
+    except urllib.error.HTTPError as e:
+        if e.code != 404:
+            raise
+    post(f"/{INDEX}", MAPPING.read_text(encoding="utf-8"), method="PUT")
+    print(f"인덱스 {INDEX} 생성(매핑 적용)")
 
 
 def post(path: str, body: str, method: str = "POST") -> dict:
@@ -49,6 +65,7 @@ def to_doc(it: dict, emb: list[float]) -> dict:
 
 
 def main() -> None:
+    ensure_index()
     corpus = json.loads(CORPUS.read_text(encoding="utf-8"))
     cache = json.loads(CACHE.read_text(encoding="utf-8"))
     items = [it for it in corpus if it["atcId"] in cache]
