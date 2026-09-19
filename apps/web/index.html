@@ -88,6 +88,11 @@
   .step { flex:1; min-width:150px; background:var(--card); border:1px solid var(--line); border-radius:12px;
           padding:12px 14px; font-size:13px; line-height:1.45; }
   .step b { color:var(--brand-d); }
+  .examples { margin-top:10px; display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+  .ex { background:#f1f5f9; color:#334155; border:1px solid var(--line); border-radius:999px;
+        padding:5px 12px; font-size:13px; font-weight:500; cursor:pointer; }
+  .ex:hover { background:#e2e8f0; border-color:#cbd5e1; }
+  .lead { color:var(--sub); font-size:13.5px; margin:-4px 0 12px; line-height:1.5; }
   .bitem { display:flex; gap:12px; padding:12px 0; border-top:1px solid var(--line); }
   .bitem:first-child { border-top:0; }
   .btag { display:inline-block; background:#eef2f7; color:#374151; border-radius:999px;
@@ -140,7 +145,7 @@
     <h1>잃어버린 물건, AI가 찾아드려요</h1>
     <p class="sub">경찰청·포털의 <b>습득물 공개데이터</b>를 자연어·사진으로 검색해, 의미 기반으로 매칭하고
       <b>왜 후보인지 근거</b>까지 보여드려요. 실제 수령은 보관기관 안내로 연결돼요.</p>
-    <p class="stat">지금 <b id="heroStat">…</b>건의 습득물에서 찾는 중 · 매일 자동 갱신</p>
+    <p class="stat" id="heroStat">불러오는 중…</p>
     <button class="cta" onclick="startSearch()">지금 찾아보기 →</button>
 
     <div class="features">
@@ -168,7 +173,8 @@
 
   <div id="viewFind">
   <div class="card">
-    <h2 data-i18n="register">분실물 등록</h2>
+    <h2 data-i18n="register">분실물 찾기</h2>
+    <p class="lead">무슨 물건을, <b>어디서·언제</b> 잃어버렸는지 자유롭게 적으면 AI가 습득물에서 찾아드려요. 자세할수록 정확해요.</p>
     <textarea id="text" data-i18n-ph="textPh" placeholder="예: 어제 2호선 지하철에서 검정색 닥스 지갑을 잃어버렸어요. 안에 신분증이랑 카드가 있었어요."></textarea>
     <input type="email" id="email" data-i18n-ph="emailPh" placeholder="알림 받을 이메일 (선택) — 나중에 매칭되면 여기로 보내드려요"
            style="width:100%; margin-top:10px; border:1px solid var(--line); border-radius:10px; padding:11px; font:inherit;" />
@@ -176,6 +182,13 @@
       <label><span data-i18n="lostDate">분실일(선택)</span> <input type="date" id="lostDate" /></label>
       <button id="go" onclick="registerLost()" data-i18n="find">찾기</button>
       <span id="hint" class="muted" style="font-size:13px"></span>
+    </div>
+    <div class="examples">
+      <span class="muted" style="font-size:13px">예시로 바로 해보기:</span>
+      <button type="button" class="ex" onclick="tryExample('어제 지하철 2호선에서 검정색 지갑을 잃어버렸어요')">검정 지갑</button>
+      <button type="button" class="ex" onclick="tryExample('강남역 근처에서 흰색 에어팟을 잃어버렸어요')">에어팟</button>
+      <button type="button" class="ex" onclick="tryExample('버스에 3단 우산을 두고 내렸어요')">3단 우산</button>
+      <button type="button" class="ex" onclick="tryExample('카드지갑을 잃어버렸어요. 신분증이랑 카드가 들어있어요')">카드지갑</button>
     </div>
 
     <div class="or" data-i18n="orPhoto">— 또는 사진으로 찾기 —</div>
@@ -204,9 +217,10 @@
 
   <div class="card">
     <div style="display:flex; justify-content:space-between; align-items:center">
-      <h2 style="margin:0" data-i18n="myReports">내 신고 목록</h2>
+      <h2 style="margin:0" data-i18n="myReports">최근 신고 목록</h2>
       <button class="ghost" onclick="loadMine()" data-i18n="refresh">새로고침</button>
     </div>
+    <p class="lead" style="margin:8px 0 0">딱 맞는 게 없어도 신고는 저장돼요. <b>새 습득물이 들어오면 자동으로 다시 찾아</b> 이메일로 알려드려요.</p>
     <div id="mine" style="margin-top:12px"><span class="muted" data-i18n="loading">불러오는 중…</span></div>
   </div>
   </div><!-- /viewFind -->
@@ -264,14 +278,14 @@ const gradeColor = (g) => g == null ? 'var(--gray)' : g >= 80 ? 'var(--green)' :
 const I18N = {
   ko: {
     subtitle:"잃어버린 물건을 자연어로 적으면, 습득물 공개데이터에서 찾아드려요.",
-    tabFind:"🔍 AI로 찾기", tabBrowse:"📋 전체 둘러보기", register:"분실물 등록",
+    tabFind:"🔍 AI로 찾기", tabBrowse:"📋 전체 둘러보기", register:"분실물 찾기",
     textPh:"예: 어제 2호선 지하철에서 검정색 닥스 지갑을 잃어버렸어요. 안에 신분증이랑 카드가 있었어요.",
     emailPh:"알림 받을 이메일 (선택) — 나중에 매칭되면 여기로 보내드려요",
     lostDate:"분실일(선택)", find:"찾기", orPhoto:"— 또는 사진으로 찾기 —",
     pickPhoto:"📷 사진 선택", searchPhoto:"사진으로 찾기",
     photoNote1:"잃어버린 물건이 찍힌(또는 비슷한) 사진이면 돼요. 사진엔 없는 <b>장소·날짜</b>는 위 설명/분실일에 적으면 함께 반영돼요.",
     photoNote2:"⚠️ 습득물은 <b>사진이 없는 경우가 많아요(약 22%만 보유).</b> 그래서 기본은 사진 속 <b>특징(종류·색상)을 읽어 텍스트로 검색</b>하고, 후보 중 <b>사진이 있는 건 당신 사진과 직접 비교</b>해 '📷 사진도 유사'로 표시해요. 설명·색상·장소를 함께 적을수록 정확해집니다.",
-    matchResult:"매칭 결과", myReports:"내 신고 목록", refresh:"새로고침", loading:"불러오는 중…",
+    matchResult:"매칭 결과", myReports:"최근 신고 목록", refresh:"새로고침", loading:"불러오는 중…",
     browseTitle:"전체 습득물 둘러보기", browseDesc:"공개데이터로 수집된 습득물을 키워드·지역·날짜로 필터링해 살펴보세요. (AI 판정 없이 즉시 조회)",
     kwPh:"키워드 (예: 지갑, 에어팟, 카드)", allRegions:"전체 지역", foundDate:"습득일", searchBtn:"검색", reset:"초기화",
     hintPipe:"추출 → 지역 → 검색 → 판정 (10초쯤 걸려요)", hintPhoto:"사진 분석 → 검색 → 판정 → 사진 대조 (15초쯤 걸려요)",
@@ -298,14 +312,14 @@ const I18N = {
   },
   en: {
     subtitle:"Describe your lost item in any language — we search Korea's public found-item data.",
-    tabFind:"🔍 AI Search", tabBrowse:"📋 Browse all", register:"Report a lost item",
+    tabFind:"🔍 AI Search", tabBrowse:"📋 Browse all", register:"Find a lost item",
     textPh:"e.g., I lost a black wallet near Gangnam Station yesterday. — A station, area or landmark is enough; you don't need the subway line number or direction.",
     emailPh:"Email for alerts (optional) — we'll notify you when it matches",
     lostDate:"Date lost (optional)", find:"Search", orPhoto:"— or search by photo —",
     pickPhoto:"📷 Choose photo", searchPhoto:"Search by photo",
     photoNote1:"A photo of your item (or a similar one) works. A photo can't show <b>place/date</b>, so add them above.",
     photoNote2:"⚠️ Many found items have <b>no photo (only ~22% do).</b> So we read your photo's <b>features (type, color) and search by text</b>, and for candidates that <b>do have a photo we compare it directly with yours</b> ('📷 Photo match'). Adding a description, color and place improves accuracy.",
-    matchResult:"Match results", myReports:"My reports", refresh:"Refresh", loading:"Loading…",
+    matchResult:"Match results", myReports:"Recent reports", refresh:"Refresh", loading:"Loading…",
     browseTitle:"Browse all found items", browseDesc:"Browse collected found items by keyword, region and date. (Instant — no AI grading.)",
     kwPh:"Keyword (e.g., wallet, AirPods, card)", allRegions:"All regions", foundDate:"Found date", searchBtn:"Search", reset:"Reset",
     hintPipe:"Extract → region → search → grade (~10s)", hintPhoto:"Reading photo → search → grade → photo compare (~15s)",
@@ -576,6 +590,7 @@ async function registerImage() {
 }
 
 async function loadMine() {
+  $("mine").innerHTML = `<span class="muted">${t('loading')}</span>`;  // 새로고침 피드백
   try {
     const items = await (await fetch("/lost-items")).json();
     if (!items.length) { $("mine").innerHTML = `<span class="muted">${t('mineEmpty')}</span>`; return; }
@@ -604,11 +619,22 @@ function startSearch() {
   setTimeout(() => el.focus(), 300);
 }
 
+function tryExample(text) {
+  switchTab("find");
+  $("text").value = text;
+  registerLost();  // 바로 검색
+}
+
 async function fetchHeroStat() {
   try {
     const d = await (await fetch("/found-items/browse?size=1")).json();
-    $("heroStat").textContent = (d.total || 0).toLocaleString();
-  } catch (e) { $("heroStat").textContent = "수천"; }
+    const total = (d.total || 0).toLocaleString();
+    const latest = d.items?.[0]?.found_at || "-";
+    $("heroStat").innerHTML =
+      `지금 <b>${total}</b>건의 습득물에서 찾는 중 · 최신 습득물 <b>${esc(latest)}</b> · 매일 <b>00시(KST)</b> 자동 갱신`;
+  } catch (e) {
+    $("heroStat").textContent = "습득물 데이터를 불러오는 중…";
+  }
 }
 
 applyLang();
