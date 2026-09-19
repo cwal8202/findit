@@ -318,6 +318,7 @@ const I18N = {
     browseXlate:"", perPage:"개씩", browseCount:(n)=>`총 ${n.toLocaleString()}건`, noItems:"조건에 맞는 습득물이 없어요.", noName:"(이름 없음)",
     prev:"‹ 이전", next:"다음 ›", loadFail:"불러오지 못했어요.", mineEmpty:"아직 등록한 신고가 없어요.",
     mineLoadFail:"목록을 불러오지 못했어요.", bestMatch:"최고 매칭",
+    showMore:(n)=>`더 보기 (전체 ${n}건)`, collapse:"접기",
     stConfirmed:"확인됨", stCandidate:"유력 후보", stOpen:"찾는중",
   },
   en: {
@@ -353,6 +354,7 @@ const I18N = {
     perPage:"per page", browseCount:(n)=>`${n.toLocaleString()} total`, noItems:"No found items match.", noName:"(no name)",
     prev:"‹ Prev", next:"Next ›", loadFail:"Couldn't load.", mineEmpty:"No reports yet.",
     mineLoadFail:"Couldn't load the list.", bestMatch:"Best match",
+    showMore:(n)=>`Show all (${n})`, collapse:"Collapse",
     stConfirmed:"Confirmed", stCandidate:"Strong match", stOpen:"Searching",
   },
 };
@@ -599,29 +601,48 @@ async function registerImage() {
   }
 }
 
+const MINE_LIMIT = 5;                 // 최근 N개만 기본 표시(길어지지 않게)
+let _mineItems = [], _mineExpanded = false;
+
 async function loadMine() {
   $("mine").innerHTML = `<span class="muted">${t('loading')}</span>`;  // 새로고침 피드백
   try {
-    const items = await (await fetch("/lost-items")).json();
-    if (!items.length) { $("mine").innerHTML = `<span class="muted">${t('mineEmpty')}</span>`; return; }
-    $("mine").innerHTML = items.map(it => {
-      const bm = it.best_match;
-      const when = (it.created_at||"").slice(0,10);
-      const stLabel = it.status==='confirmed'?t('stConfirmed'):(it.status==='candidate'||it.status==='matched')?t('stCandidate'):t('stOpen');
-      return `<div class="mine-item">
-        <div style="display:flex; justify-content:space-between; gap:10px">
-          <div style="min-width:0">
-            <div>${esc(it.text)}</div>
-            <div class="m-meta">${when}${bm ? " · "+t('bestMatch')+": "+esc(bm.name)+" (grade "+(it.best_grade??"-")+")" : ""}</div>
-          </div>
-          <span class="status ${it.status==='matched'?'candidate':it.status}">${stLabel}</span>
-        </div>
-      </div>`;
-    }).join("");
+    _mineItems = await (await fetch("/lost-items")).json();
+    renderMine();
   } catch (e) {
     $("mine").innerHTML = `<span class="muted">${t('mineLoadFail')}</span>`;
   }
 }
+
+function mineItem(it) {
+  const bm = it.best_match;
+  const when = (it.created_at || "").slice(0, 10);
+  const stLabel = it.status === "confirmed" ? t("stConfirmed")
+    : (it.status === "candidate" || it.status === "matched") ? t("stCandidate") : t("stOpen");
+  return `<div class="mine-item">
+    <div style="display:flex; justify-content:space-between; gap:10px">
+      <div style="min-width:0">
+        <div>${esc(it.text)}</div>
+        <div class="m-meta">${when}${bm ? " · " + t("bestMatch") + ": " + esc(bm.name) + " (grade " + (it.best_grade ?? "-") + ")" : ""}</div>
+      </div>
+      <span class="status ${it.status === "matched" ? "candidate" : it.status}">${stLabel}</span>
+    </div>
+  </div>`;
+}
+
+function renderMine() {
+  const items = _mineItems;
+  if (!items.length) { $("mine").innerHTML = `<span class="muted">${t('mineEmpty')}</span>`; return; }
+  const shown = _mineExpanded ? items : items.slice(0, MINE_LIMIT);
+  let html = shown.map(mineItem).join("");
+  if (items.length > MINE_LIMIT) {
+    html += `<button class="ghost" onclick="toggleMine()" style="width:100%; margin-top:10px">
+      ${_mineExpanded ? t('collapse') : t('showMore', items.length)}</button>`;
+  }
+  $("mine").innerHTML = html;
+}
+
+function toggleMine() { _mineExpanded = !_mineExpanded; renderMine(); }
 function startSearch() {
   switchTab("find");
   const el = $("text");
