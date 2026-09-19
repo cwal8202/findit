@@ -68,6 +68,26 @@
   .goog-text-highlight { background:none !important; box-shadow:none !important; }
   .note { background:#fffbeb; border:1px solid #fde68a; color:#92400e; border-radius:10px;
           padding:9px 12px; font-size:12.5px; line-height:1.5; }
+  .hero { background:linear-gradient(135deg,#eff6ff,#eef2ff); border:1px solid #e0e7ff;
+          border-radius:16px; padding:26px 22px; margin-bottom:16px; }
+  .hero .kicker { display:inline-block; background:#dbeafe; color:#1e40af; font-size:12px; font-weight:700;
+          border-radius:999px; padding:4px 12px; margin-bottom:12px; }
+  .hero h1 { font-size:25px; margin:0 0 8px; line-height:1.25; }
+  .hero .sub { color:#374151; margin:0 0 10px; font-size:15px; line-height:1.5; }
+  .hero .stat { color:var(--sub); font-size:14px; margin:0 0 16px; }
+  .hero .stat b { color:var(--brand-d); }
+  .hero .cta { background:var(--brand); color:#fff; border:0; border-radius:10px; padding:11px 22px;
+          font:inherit; font-weight:700; font-size:15px; cursor:pointer; }
+  .hero .cta:hover { background:var(--brand-d); }
+  .features { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:10px; margin:18px 0 4px; }
+  .feat { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px; }
+  .feat .ic { font-size:19px; }
+  .feat h3 { font-size:14px; margin:6px 0 4px; }
+  .feat p { font-size:13px; color:var(--sub); margin:0; line-height:1.5; }
+  .steps { display:flex; gap:10px; flex-wrap:wrap; margin-top:12px; }
+  .step { flex:1; min-width:150px; background:var(--card); border:1px solid var(--line); border-radius:12px;
+          padding:12px 14px; font-size:13px; line-height:1.45; }
+  .step b { color:var(--brand-d); }
   .bitem { display:flex; gap:12px; padding:12px 0; border-top:1px solid var(--line); }
   .bitem:first-child { border-top:0; }
   .btag { display:inline-block; background:#eef2f7; color:#374151; border-radius:999px;
@@ -114,6 +134,32 @@
       </select>
     </div>
   </header>
+
+  <section class="hero">
+    <span class="kicker">🔍 분실물 매칭 AI 에이전트</span>
+    <h1>잃어버린 물건, AI가 찾아드려요</h1>
+    <p class="sub">경찰청·포털의 <b>습득물 공개데이터</b>를 자연어·사진으로 검색해, 의미 기반으로 매칭하고
+      <b>왜 후보인지 근거</b>까지 보여드려요. 실제 수령은 보관기관 안내로 연결돼요.</p>
+    <p class="stat">지금 <b id="heroStat">…</b>건의 습득물에서 찾는 중 · 매일 자동 갱신</p>
+    <button class="cta" onclick="startSearch()">지금 찾아보기 →</button>
+
+    <div class="features">
+      <div class="feat"><div class="ic">🗣️ 📷</div><h3>자연어·사진 검색</h3>
+        <p>"어제 2호선에서 검정 지갑 잃어버렸어요"처럼 말하듯, 또는 사진 한 장으로.</p></div>
+      <div class="feat"><div class="ic">🎯</div><h3>의미 기반 매칭 + 근거</h3>
+        <p>키워드가 아니라 뜻으로 찾고(한↔영·오타 커버), 왜 당신 물건일지 근거를 제시.</p></div>
+      <div class="feat"><div class="ic">📍</div><h3>경로 기반 지역</h3>
+        <p>지하철·버스로 이동한 경유 지역까지 넓게 살펴 순위에 반영.</p></div>
+      <div class="feat"><div class="ic">🌐</div><h3>외국인도 OK</h3>
+        <p>여러 언어 화면 + 어떤 언어로 검색해도 결과. 수령 방법·지도까지 안내.</p></div>
+    </div>
+
+    <div class="steps">
+      <div class="step"><b>1.</b> 말로 설명하거나 사진 올리기</div>
+      <div class="step"><b>2.</b> AI가 후보 + 근거 제시 (확인은 본인이)</div>
+      <div class="step"><b>3.</b> 내 물건이면 보관기관·연락처·지도 안내</div>
+    </div>
+  </section>
 
   <div class="tabs">
     <button id="tabFind" class="tab active" onclick="switchTab('find')" data-i18n="tabFind">🔍 AI로 찾기</button>
@@ -551,8 +597,23 @@ async function loadMine() {
     $("mine").innerHTML = `<span class="muted">${t('mineLoadFail')}</span>`;
   }
 }
+function startSearch() {
+  switchTab("find");
+  const el = $("text");
+  el.scrollIntoView({ behavior: "smooth", block: "center" });
+  setTimeout(() => el.focus(), 300);
+}
+
+async function fetchHeroStat() {
+  try {
+    const d = await (await fetch("/found-items/browse?size=1")).json();
+    $("heroStat").textContent = (d.total || 0).toLocaleString();
+  } catch (e) { $("heroStat").textContent = "수천"; }
+}
+
 applyLang();
 loadMine();
+fetchHeroStat();
 
 // ===== 탭 + 전체 둘러보기 =====
 let _browseLoaded = false;
