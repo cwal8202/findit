@@ -56,9 +56,15 @@
   .tab { background:#eef2f7; color:#4b5563; font-weight:600; border-radius:10px; padding:9px 16px; }
   .tab:hover { background:#e2e8f0; }
   .tab.active { background:var(--brand); color:#fff; }
-  .langtog { background:#eef2ff; color:var(--brand-d); font-weight:700; border-radius:999px;
-             padding:7px 14px; font-size:13px; }
-  .langtog:hover { background:#e0e7ff; }
+  .langsel { border:1px solid #c7d2fe; border-radius:999px; padding:7px 12px; font:inherit;
+             font-size:13px; font-weight:600; color:var(--brand-d); background:#eef2ff; cursor:pointer; }
+  .langsel:hover { background:#e0e7ff; }
+  /* Google 번역 위젯의 기본 UI·상단 배너 숨김(우리 langsel로 구동). */
+  #google_translate_element { display:none; }
+  .goog-te-banner-frame.skiptranslate, .goog-te-gadget-icon { display:none !important; }
+  .goog-te-balloon-frame, #goog-gt-tt { display:none !important; }
+  body { top:0 !important; }
+  .goog-text-highlight { background:none !important; box-shadow:none !important; }
   .note { background:#fffbeb; border:1px solid #fde68a; color:#92400e; border-radius:10px;
           padding:9px 12px; font-size:12.5px; line-height:1.5; }
   .bitem { display:flex; gap:12px; padding:12px 0; border-top:1px solid var(--line); }
@@ -89,7 +95,22 @@
     </div>
     <div style="margin-left:auto; display:flex; align-items:center; gap:8px">
       <div id="google_translate_element"></div>
-      <button id="langBtn" class="langtog" onclick="toggleLang()">EN</button>
+      <select id="langPicker" class="langsel" onchange="pickLang(this.value)" title="Language / 언어" translate="no">
+        <option value="ko">🌐 한국어</option>
+        <option value="en">English</option>
+        <option value="ja">日本語</option>
+        <option value="zh-CN">中文 (简体)</option>
+        <option value="zh-TW">中文 (繁體)</option>
+        <option value="vi">Tiếng Việt</option>
+        <option value="th">ไทย</option>
+        <option value="id">Bahasa Indonesia</option>
+        <option value="ms">Bahasa Melayu</option>
+        <option value="hi">हिन्दी</option>
+        <option value="fr">Français</option>
+        <option value="es">Español</option>
+        <option value="ru">Русский</option>
+        <option value="de">Deutsch</option>
+      </select>
     </div>
   </header>
 
@@ -164,7 +185,6 @@
       <button class="ghost" onclick="resetBrowse()" data-i18n="reset">초기화</button>
       <span id="bcount" class="muted" style="font-size:13px"></span>
     </div>
-    <div id="brXlate" class="note" style="display:none; background:#eff6ff; border-color:#bfdbfe; color:#1e40af; margin-top:10px" data-i18n="browseXlate"></div>
   </div>
 
   <div class="card">
@@ -179,9 +199,10 @@
 <!-- Google 번역 위젯(경찰민원24식 다국어 드롭다운). 화면 표시만 번역; 검색어는 서버가 번역. -->
 <script>
 function googleTranslateElementInit() {
+  // 위젯 UI는 CSS로 숨기고, 우리 #langPicker가 숨은 .goog-te-combo를 구동.
   new google.translate.TranslateElement(
     {pageLanguage: 'ko', includedLanguages: 'en,ja,zh-CN,zh-TW,vi,th,id,ms,hi,fr,es,ru,de',
-     layout: google.translate.TranslateElement.InlineLayout.SIMPLE, autoDisplay: false},
+     autoDisplay: false},
     'google_translate_element');
 }
 </script>
@@ -264,8 +285,8 @@ const I18N = {
     stConfirmed:"Confirmed", stCandidate:"Strong match", stOpen:"Searching",
   },
 };
-let LANG = "ko";
-try { LANG = localStorage.getItem("findit_lang") || "ko"; } catch (e) {}
+// UI 기본 언어는 한국어 고정. 다국어 표시는 Google 번역 위젯(#langPicker)이 담당.
+const LANG = "ko";
 const t = (k, ...a) => { const v = (I18N[LANG] || I18N.ko)[k]; return typeof v === "function" ? v(...a) : (v ?? k); };
 const mapUrl = (m) => "https://www.google.com/maps/search/?api=1&query=" +
   encodeURIComponent(m.org_name || [m.region, m.dep_place].filter(Boolean).join(" ") || m.dep_place || "");
@@ -274,21 +295,27 @@ const dispName = (m) => (LANG === "en" && m.name_en) ? m.name_en : m.name;
 const dispDesc = (m) => (LANG === "en" && m.desc_en) ? m.desc_en : cleanDesc(m.description);
 
 function applyLang() {
-  // 데이터(물품명·설명)는 한국어라 lang은 항상 "ko" — 그래야 브라우저 '페이지 번역'이 동작(EN 모드여도).
-  // lang="en"으로 두면 크롬이 '이미 영어'로 보고 한국어 항목을 번역하지 않음.
-  document.documentElement.lang = "ko";
+  document.documentElement.lang = "ko";  // 데이터가 한국어 → Google 위젯 번역 대상
   document.querySelectorAll("[data-i18n]").forEach(el => { el.innerHTML = t(el.dataset.i18n); });
   document.querySelectorAll("[data-i18n-ph]").forEach(el => { el.placeholder = t(el.dataset.i18nPh); });
-  $("langBtn").textContent = LANG === "ko" ? "EN" : "한국어";
-  const bx = $("brXlate"); if (bx) bx.style.display = LANG === "en" ? "" : "none";  // 브라우저 번역 안내는 EN에서만
 }
 
-function toggleLang() {
-  LANG = LANG === "ko" ? "en" : "ko";
-  try { localStorage.setItem("findit_lang", LANG); } catch (e) {}
-  applyLang();
-  if (_browseLoaded) { $("bregion").dataset.filled = ""; doBrowse(1); }  // 라벨 갱신
-  loadMine();
+// 우리 셀렉터 → Google 번역 위젯의 숨은 콤보 구동. 'ko'는 원문 복원(쿠키 삭제 후 새로고침).
+function pickLang(code) {
+  if (code === "ko") {
+    const host = location.hostname;
+    for (const d of ["", "; domain=" + host, "; domain=." + host]) {
+      document.cookie = "googtrans=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC" + d;
+    }
+    location.reload();
+    return;
+  }
+  let tries = 0;
+  (function set() {
+    const combo = document.querySelector(".goog-te-combo");
+    if (combo) { combo.value = code; combo.dispatchEvent(new Event("change")); }
+    else if (tries++ < 20) { setTimeout(set, 250); }  // 위젯 로드 대기
+  })();
 }
 
 function chips(items, cls="") {
