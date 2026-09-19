@@ -19,6 +19,7 @@ import urllib.request
 
 from apps.api import gemini
 from apps.api.config import settings
+from apps.api.region import resolver as region_resolver
 from apps.collector import client
 from apps.collector.normalize import doc_id, embed_text, normalize
 
@@ -83,6 +84,9 @@ def main() -> None:
     for src in sources:
         print(f"[{src}] 수집 {args.start}~{args.end} (max {args.max}, enrich={args.enrich})")
         all_docs += fetch(src, args.start, args.end, args.rows, args.max, args.enrich)
+
+    for d in all_docs:  # 구/시 해석해 색인에 저장(둘러보기 지역 필터·집계용, 비용 0)
+        d["region"] = region_resolver.resolve(d.get("dep_place", ""))
 
     print(f"\n총 정규화 {len(all_docs)}건")
     if all_docs:

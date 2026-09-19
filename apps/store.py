@@ -143,6 +143,11 @@ def update_match(lid: str, best_match: dict, best_grade: int, status: str) -> No
     )
 
 
+def set_email(lid: str, email: str) -> None:
+    """알림 받을 이메일 갱신(결과창에서 뒤늦게 입력 시). 이후 재매칭 알림도 이 주소로."""
+    _run("UPDATE lost_items SET email=? WHERE id=?", (email or "", lid))
+
+
 def confirm(lid: str, match: dict) -> None:
     """사용자가 '내 물건이에요' → 확인됨(수령 단계)."""
     _run(

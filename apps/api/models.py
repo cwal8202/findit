@@ -47,6 +47,11 @@ class LostItemImageRequest(BaseModel):
     email: str | None = None
 
 
+class EmailResultsRequest(BaseModel):
+    email: str                      # 결과를 받을 이메일(사용자가 결과창에서 직접 입력)
+    matches: list[dict] = []        # 화면에 보인 후보들(그대로 메일에 담음)
+
+
 class ConfirmRequest(BaseModel):
     match: dict                     # 사용자가 '내 물건이에요' 한 습득물(기록·수령안내용)
 

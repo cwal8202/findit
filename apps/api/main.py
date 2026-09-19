@@ -19,6 +19,7 @@ from .config import settings
 from .models import (
     ConfirmRequest,
     DismissRequest,
+    EmailResultsRequest,
     FoundItem,
     LostItemImageRequest,
     LostItemRequest,
@@ -96,6 +97,20 @@ def _persist_and_respond(text: str, result: dict, email: str) -> MatchResponse:
     )
 
 
+@app.get("/found-items/browse")
+def browse_found_items(
+    q: str = Query("", description="키워드 검색(물품명·설명·분류, BM25)"),
+    region: str = Query("", description="지역(구/시) 필터 (예: '강남')"),
+    date_from: str = Query("", description="습득일 시작 YYYY-MM-DD"),
+    date_to: str = Query("", description="습득일 끝 YYYY-MM-DD"),
+    page: int = Query(1, ge=1, description="페이지(1부터)"),
+    size: int = Query(24, ge=1, le=100, description="페이지당 개수"),
+) -> dict:
+    """전체 습득물 둘러보기 — 키워드/지역/날짜 필터 + 최신순. 임베딩·LLM 미사용(무료·즉시)."""
+    return search_mod.browse(q=q, region=region, date_from=date_from, date_to=date_to,
+                             page=page, size=size)
+
+
 @app.post("/lost-items", response_model=MatchResponse)
 def register_lost_item(req: LostItemRequest) -> MatchResponse:
     """분실물 자연어 신고 → 매칭 에이전트(추출→라우팅→fan-out→검색→grading) → 매칭 결과.
@@ -132,6 +147,25 @@ def get_lost_item(lid: str) -> dict:
     if not item:
         raise HTTPException(status_code=404, detail="해당 분실물 신고 없음")
     return item
+
+
+@app.post("/lost-items/{lid}/email")
+def email_lost_item(lid: str, req: EmailResultsRequest) -> dict:
+    """사용자가 결과창에서 이메일 입력 후 '보내기' → 현재 후보들을 그 주소로 발송(+이후 알림도 그 주소).
+
+    사용자 본인이 명시적으로 트리거. 이메일 미입력으로 등록한 뒤 뒤늦게 받고 싶을 때.
+    """
+    item = store.get(lid)
+    if not item:
+        raise HTTPException(status_code=404, detail="해당 분실물 신고 없음")
+    email = (req.email or "").strip()
+    if "@" not in email:
+        raise HTTPException(status_code=400, detail="유효한 이메일이 아닙니다")
+    store.set_email(lid, email)
+    from apps.notifier import notifier
+    lost = {"id": lid, "user_id": "anon", "text": item.get("text", ""), "email": email}
+    notifier.notify(lost, req.matches or [])
+    return {"ok": True, "sent_to": email}
 
 
 @app.post("/lost-items/{lid}/confirm")

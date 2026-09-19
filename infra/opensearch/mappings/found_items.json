@@ -38,6 +38,7 @@
       "color": { "type": "keyword" },
       "found_place": { "type": "keyword" },
       "dep_place": { "type": "keyword" },
+      "region": { "type": "keyword" },
 
       "org_name": { "type": "keyword", "index": false },
       "tel": { "type": "keyword", "index": false },
