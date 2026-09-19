@@ -39,6 +39,14 @@ class LostItemRequest(BaseModel):
     email: str | None = None        # 매칭 시 알림 받을 이메일(신고자별)
 
 
+class LostItemImageRequest(BaseModel):
+    image_b64: str                  # 사진(base64, 데이터URL 접두사 제외)
+    mime: str = "image/jpeg"        # image/jpeg | image/png ...
+    note: str = ""                  # 선택 메모(장소·날짜 등 사진이 모르는 정보)
+    lost_date: str | None = None
+    email: str | None = None
+
+
 class ConfirmRequest(BaseModel):
     match: dict                     # 사용자가 '내 물건이에요' 한 습득물(기록·수령안내용)
 

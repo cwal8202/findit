@@ -95,6 +95,29 @@ def run(text: str, lost_date: str | None = None) -> dict:
     return GRAPH.invoke({"text": text, "lost_date": lost_date or ""})
 
 
+def _synth_text(ex: dict, note: str = "") -> str:
+    """추출 필드 → 사람이 읽을 한 줄(설명/grade/저장/표시용). 사진 신고는 문장이 없으므로 합성."""
+    core = " ".join(x for x in (ex.get("color", ""), ex.get("brand", ""), ex.get("item", "")) if x)
+    parts = [p for p in (core, ex.get("features", ""), note.strip()) if p]
+    return " / ".join(parts) or (ex.get("category", "") or "사진 신고")
+
+
+def run_image(image_b64: str, mime: str = "image/jpeg",
+              note: str = "", lost_date: str | None = None) -> dict:
+    """사진(+선택 메모) 신고 → Vision 추출 → 텍스트와 동일 파이프라인(라우팅~grade).
+
+    사진에는 문장이 없으므로 추출 필드로 검색용 text를 합성해 grade/저장/표시에 재사용.
+    """
+    ex = extract_mod.extract_image(image_b64, mime, note=note, lost_date=lost_date)
+    text = _synth_text(ex, note)
+    state: AgentState = {"text": text, "extracted": ex}
+    state.update(n_route(state))
+    state.update(n_fanout(state))
+    state.update(n_search(state))
+    state.update(n_grade(state))
+    return state
+
+
 def match_stored(text: str, extracted: dict, region_set: list, queries: list) -> list[dict]:
     """저장된 분실물 재매칭 — 추출·라우팅 생략(이미 있음), 검색+grade만.
     지속 재매칭이 open 항목마다 호출(LLM 추출/라우팅 재호출 없이 저렴)."""

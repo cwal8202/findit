@@ -20,6 +20,7 @@ from .models import (
     ConfirmRequest,
     DismissRequest,
     FoundItem,
+    LostItemImageRequest,
     LostItemRequest,
     MatchResponse,
     SearchResponse,
@@ -68,15 +69,8 @@ def search_found_items(
     )
 
 
-@app.post("/lost-items", response_model=MatchResponse)
-def register_lost_item(req: LostItemRequest) -> MatchResponse:
-    """분실물 자연어 신고 → 매칭 에이전트(추출→라우팅→fan-out→검색→grading) → 매칭 결과.
-
-    v1: stateless(등록 즉시 매칭). 추후 DB 저장 + 신규 습득물 유입 시 지속 재매칭.
-    """
-    from apps.agent import graph as agent_graph
-
-    result = agent_graph.run(req.text, req.lost_date)
+def _persist_and_respond(text: str, result: dict, email: str) -> MatchResponse:
+    """매칭 결과 저장 + (유력 후보면) 알림 + 응답 구성. 텍스트/사진 신고 공용."""
     raw_matches = result.get("matches", [])
     top = raw_matches[0] if raw_matches else None
     best_grade = top.get("grade") if top else None
@@ -84,23 +78,46 @@ def register_lost_item(req: LostItemRequest) -> MatchResponse:
     status = "candidate" if (best_grade or 0) >= settings.rematch_grade_threshold else "open"
 
     lid = store.add(
-        req.text, result.get("extracted", {}), result.get("region_set", []),
-        result.get("queries", []), top, best_grade, status=status,
-        email=(req.email or ""),
+        text, result.get("extracted", {}), result.get("region_set", []),
+        result.get("queries", []), top, best_grade, status=status, email=email,
     )
     if status == "candidate" and top:  # 유력 후보 발견 → 알림(신고자 이메일로, 후보 목록 포함)
         from apps.notifier import notifier
         notifier.notify(
-            {"id": lid, "user_id": "anon", "text": req.text, "email": req.email or ""}, raw_matches
+            {"id": lid, "user_id": "anon", "text": text, "email": email}, raw_matches
         )
     return MatchResponse(
-        id=lid, status=status, query=req.text,
+        id=lid, status=status, query=text,
         extracted=result.get("extracted", {}),
         region_set=result.get("region_set", []),
         queries=result.get("queries", []),
         count=len(raw_matches),
         matches=[FoundItem(**m) for m in raw_matches],
     )
+
+
+@app.post("/lost-items", response_model=MatchResponse)
+def register_lost_item(req: LostItemRequest) -> MatchResponse:
+    """분실물 자연어 신고 → 매칭 에이전트(추출→라우팅→fan-out→검색→grading) → 매칭 결과.
+
+    등록 즉시 매칭 + DB 저장(open/candidate). 신규 습득물 유입 시 지속 재매칭.
+    """
+    from apps.agent import graph as agent_graph
+
+    result = agent_graph.run(req.text, req.lost_date)
+    return _persist_and_respond(req.text, result, req.email or "")
+
+
+@app.post("/lost-items/image", response_model=MatchResponse)
+def register_lost_item_image(req: LostItemImageRequest) -> MatchResponse:
+    """사진(+선택 메모) 신고 → Vision 추출 → 동일 파이프라인 → 매칭 결과.
+
+    사진 레인: 문장 대신 이미지에서 물품·색상·브랜드·특징을 추출해 검색. 이후는 텍스트와 동일.
+    """
+    from apps.agent import graph as agent_graph
+
+    result = agent_graph.run_image(req.image_b64, req.mime, note=req.note, lost_date=req.lost_date)
+    return _persist_and_respond(result.get("text", "사진 신고"), result, req.email or "")
 
 
 @app.get("/lost-items")

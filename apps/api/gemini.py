@@ -82,6 +82,23 @@ def generate_json(prompt: str, timeout: int = 60):
         return None
 
 
+def generate_json_image(prompt: str, image_b64: str, mime: str = "image/jpeg", timeout: int = 60):
+    """사진 + 프롬프트 → JSON (Vision 추출용). gemini-3.6-flash 멀티모달. 실패 시 None."""
+    url = f"{_BASE}/{settings.gemini_grade_model}:generateContent?key={settings.gemini_api_key}"
+    body = {
+        "contents": [{"parts": [
+            {"inline_data": {"mime_type": mime, "data": image_b64}},
+            {"text": prompt},
+        ]}],
+        "generationConfig": {"responseMimeType": "application/json", "temperature": 0},
+    }
+    try:
+        text = _post(url, body, timeout)["candidates"][0]["content"]["parts"][0]["text"]
+        return json.loads(text)
+    except (KeyError, IndexError, json.JSONDecodeError, urllib.error.URLError):
+        return None
+
+
 def embed_texts(texts: list[str], chunk: int = 50) -> list[list[float]]:
     """여러 문서를 배치 임베딩(정규화). 수집기 색인용. batchEmbedContents 청크."""
     out: list[list[float]] = []

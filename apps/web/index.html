@@ -50,6 +50,8 @@
   .status.open { background:#fef9c3; color:#854d0e; }
   .mine-item { border-top:1px solid var(--line); padding:12px 0; }
   .mine-item:first-child { border-top:0; }
+  .or { text-align:center; color:var(--sub); font-size:12px; margin:16px 0 4px;
+        border-top:1px solid var(--line); padding-top:14px; }
   .spin { display:inline-block; width:15px; height:15px; border:2px solid #fff;
           border-top-color:transparent; border-radius:50%; animation:s .7s linear infinite;
           vertical-align:-2px; margin-right:6px; }
@@ -80,6 +82,19 @@
       <label>분실일(선택) <input type="date" id="lostDate" /></label>
       <button id="go" onclick="registerLost()">찾기</button>
       <span id="hint" class="muted" style="font-size:13px"></span>
+    </div>
+
+    <div class="or">— 또는 사진으로 찾기 —</div>
+    <div class="row">
+      <input type="file" id="photo" accept="image/*" onchange="onPhoto(event)" style="display:none" />
+      <button type="button" class="ghost" onclick="$('photo').click()">📷 사진 선택</button>
+      <img id="photoPreview" hidden alt="선택한 사진"
+           style="width:52px;height:52px;object-fit:cover;border-radius:8px;border:1px solid var(--line)" />
+      <button id="goImg" onclick="registerImage()" disabled>사진으로 찾기</button>
+      <span id="hintImg" class="muted" style="font-size:13px"></span>
+    </div>
+    <div class="muted" style="font-size:12px; margin-top:4px">
+      잃어버린 물건이 찍힌(또는 비슷한) 사진이면 돼요. 사진엔 없는 <b>장소·날짜</b>는 위 설명/분실일에 적으면 함께 반영돼요.
     </div>
   </div>
 
@@ -182,6 +197,30 @@ function claimGuide(m) {
     <p class="muted" style="font-size:13px">※ 신분 확인 등 기관 절차에 따라 본인이 수령하세요. FindIt은 안내만 제공합니다.</p>`;
 }
 
+function renderResult(d, userPhoto) {
+  _lid = d.id; _matches = d.matches || [];
+  const ex = d.extracted || {};
+  const exChips = [ex.item, ex.brand, ex.color, ex.category && ("분류:"+ex.category), ex.place_context, ex.lost_date, ex.features];
+  const banner = d.status === "candidate"
+    ? `<div class="banner candidate">🔔 유력 후보를 찾았어요. 아래에서 <b>맞는지 확인</b>해주세요. (확정은 본인이!)</div>`
+    : `<div class="banner open">🕓 지금은 딱 맞는 게 없어요. 접수해두고 새 습득물이 들어오면 자동으로 다시 찾아 알려드려요. (아래에 비슷한 후보가 있으면 확인해보세요)</div>`;
+  const photoBlock = userPhoto
+    ? `<div style="margin-bottom:10px; display:flex; gap:10px; align-items:center">
+         <img src="${userPhoto}" style="width:72px;height:72px;object-fit:cover;border-radius:10px;border:1px solid var(--line)" />
+         <div class="muted" style="font-size:12px">올려주신 사진에서 아래 정보를 읽어 검색했어요 👇</div>
+       </div>` : "";
+  $("result").innerHTML =
+    `${banner}${photoBlock}
+     <div style="margin-bottom:8px"><b>${userPhoto ? "사진에서 읽음" : "추출"}</b> ${chips(exChips)}</div>
+     ${d.region_set?.length ? `<div style="margin-bottom:8px"><b>검색 지역</b> ${chips(d.region_set, "k")}</div>` : ""}
+     <div style="margin-bottom:8px"><b>후보 쿼리</b> ${chips(d.queries)}</div>
+     <div style="margin-top:12px"><b>후보 ${d.count}건 — 본인 물건이 있나요?</b></div>
+     ${(d.matches||[]).slice(0,6).map((m,i)=>matchCard(m,i)).join("") || '<span class="muted">후보 없음</span>'}`;
+  $("resultCard").hidden = false;
+  $("resultCard").scrollIntoView({ behavior:"smooth", block:"nearest" });
+  loadMine();
+}
+
 async function registerLost() {
   const text = $("text").value.trim();
   if (!text) { $("hint").textContent = "분실물 설명을 입력하세요."; return; }
@@ -192,26 +231,46 @@ async function registerLost() {
     const body = { text, lost_date: $("lostDate").value || null, email: $("email").value.trim() || null };
     const res = await fetch("/lost-items", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(body) });
     if (!res.ok) throw new Error("서버 오류 " + res.status);
-    const d = await res.json();
-    _lid = d.id; _matches = d.matches || [];
-    const ex = d.extracted || {};
-    const exChips = [ex.item, ex.brand, ex.color, ex.category && ("분류:"+ex.category), ex.place_context, ex.lost_date, ex.features];
-    const banner = d.status === "candidate"
-      ? `<div class="banner candidate">🔔 유력 후보를 찾았어요. 아래에서 <b>맞는지 확인</b>해주세요. (확정은 본인이!)</div>`
-      : `<div class="banner open">🕓 지금은 딱 맞는 게 없어요. 접수해두고 새 습득물이 들어오면 자동으로 다시 찾아 알려드려요. (아래에 비슷한 후보가 있으면 확인해보세요)</div>`;
-    $("result").innerHTML =
-      `${banner}
-       <div style="margin-bottom:8px"><b>추출</b> ${chips(exChips)}</div>
-       ${d.region_set?.length ? `<div style="margin-bottom:8px"><b>검색 지역</b> ${chips(d.region_set, "k")}</div>` : ""}
-       <div style="margin-bottom:8px"><b>후보 쿼리</b> ${chips(d.queries)}</div>
-       <div style="margin-top:12px"><b>후보 ${d.count}건 — 본인 물건이 있나요?</b></div>
-       ${(d.matches||[]).slice(0,6).map((m,i)=>matchCard(m,i)).join("") || '<span class="muted">후보 없음</span>'}`;
-    $("resultCard").hidden = false;
-    $("resultCard").scrollIntoView({ behavior:"smooth", block:"nearest" });
+    renderResult(await res.json());
     $("hint").textContent = "";
-    loadMine();
   } catch (e) {
     $("hint").textContent = "오류: " + e.message;
+  } finally {
+    btn.disabled = false; btn.textContent = orig;
+  }
+}
+
+let _photoB64 = null, _photoMime = null, _photoDataUrl = null;
+
+function onPhoto(e) {
+  const f = e.target.files[0]; if (!f) return;
+  _photoMime = f.type || "image/jpeg";
+  const rd = new FileReader();
+  rd.onload = () => {
+    _photoDataUrl = rd.result;
+    _photoB64 = rd.result.split(",")[1];
+    const p = $("photoPreview"); p.src = rd.result; p.hidden = false;
+    $("goImg").disabled = false;
+    $("hintImg").textContent = f.name.length > 20 ? f.name.slice(0, 20) + "…" : f.name;
+  };
+  rd.readAsDataURL(f);
+}
+
+async function registerImage() {
+  if (!_photoB64) { $("hintImg").textContent = "먼저 사진을 선택하세요."; return; }
+  const btn = $("goImg"); btn.disabled = true;
+  const orig = btn.textContent; btn.innerHTML = '<span class="spin"></span>찾는 중…';
+  $("hintImg").textContent = "사진 분석 → 검색 → 판정 (10초쯤 걸려요)";
+  try {
+    const body = { image_b64: _photoB64, mime: _photoMime,
+                   note: $("text").value.trim(), lost_date: $("lostDate").value || null,
+                   email: $("email").value.trim() || null };
+    const res = await fetch("/lost-items/image", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(body) });
+    if (!res.ok) throw new Error("서버 오류 " + res.status);
+    renderResult(await res.json(), _photoDataUrl);
+    $("hintImg").textContent = "";
+  } catch (e) {
+    $("hintImg").textContent = "오류: " + e.message;
   } finally {
     btn.disabled = false; btn.textContent = orig;
   }
