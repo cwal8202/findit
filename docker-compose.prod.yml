@@ -53,10 +53,28 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+    expose:
+      - "8000"                             # 내부 전용(Caddy가 프록시). 외부 미노출.
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: findit-caddy
+    environment:
+      - DOMAIN=${DOMAIN:-}                  # .env 의 DuckDNS 도메인. 없으면 http(:80)만.
     ports:
-      - "80:8000"                          # 외부 80 → 백엔드 8000 (웹+API)
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - findit-caddy-data:/data            # 인증서 영속
+      - findit-caddy-config:/config
+    depends_on:
+      - backend
     restart: unless-stopped
 
 volumes:
   findit-os-data:
   findit-pg-data:
+  findit-caddy-data:
+  findit-caddy-config:

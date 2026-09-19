@@ -1,0 +1,10 @@
+# FindIt 리버스 프록시 + 자동 HTTPS(Let's Encrypt). 도메인은 .env 의 DOMAIN.
+# 도메인 요청 → https 자동발급 + 백엔드 프록시. http는 https로 리다이렉트.
+{$DOMAIN} {
+	reverse_proxy backend:8000
+}
+
+# 도메인 없이 IP(http)로 와도 접속되게 (기존 http://IP 링크 유지). https 없음.
+:80 {
+	reverse_proxy backend:8000
+}
