@@ -87,7 +87,10 @@
       <h1 style="margin:0;">FindIt</h1>
       <p style="margin:2px 0 0;" data-i18n="subtitle">잃어버린 물건을 자연어로 적으면, 습득물 공개데이터에서 찾아드려요.</p>
     </div>
-    <button id="langBtn" class="langtog" onclick="toggleLang()" style="margin-left:auto">EN</button>
+    <div style="margin-left:auto; display:flex; align-items:center; gap:8px">
+      <div id="google_translate_element"></div>
+      <button id="langBtn" class="langtog" onclick="toggleLang()">EN</button>
+    </div>
   </header>
 
   <div class="tabs">
@@ -172,6 +175,17 @@
 </div>
 
 <div id="lightbox" hidden onclick="closeLightbox()"><img id="lightboxImg" src="" alt="" /></div>
+
+<!-- Google 번역 위젯(경찰민원24식 다국어 드롭다운). 화면 표시만 번역; 검색어는 서버가 번역. -->
+<script>
+function googleTranslateElementInit() {
+  new google.translate.TranslateElement(
+    {pageLanguage: 'ko', includedLanguages: 'en,ja,zh-CN,zh-TW,vi,th,id,ms,hi,fr,es,ru,de',
+     layout: google.translate.TranslateElement.InlineLayout.SIMPLE, autoDisplay: false},
+    'google_translate_element');
+}
+</script>
+<script src="https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
 
 <script>
 const $ = (id) => document.getElementById(id);
