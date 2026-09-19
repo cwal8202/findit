@@ -120,8 +120,9 @@
       잃어버린 물건이 찍힌(또는 비슷한) 사진이면 돼요. 사진엔 없는 <b>장소·날짜</b>는 위 설명/분실일에 적으면 함께 반영돼요.
     </div>
     <div class="note" style="margin-top:8px" data-i18n="photoNote2">
-      ⚠️ 습득물 데이터는 <b>사진이 없는 경우가 많아요.</b> 사진끼리 비교하는 게 아니라, 사진 속 물건의
-      <b>특징(종류·색상 등)을 읽어 텍스트로 검색</b>해요. 그래서 설명·색상·장소를 함께 적을수록 정확해집니다.
+      ⚠️ 습득물은 <b>사진이 없는 경우가 많아요(약 22%만 보유).</b> 그래서 기본은 사진 속
+      <b>특징(종류·색상)을 읽어 텍스트로 검색</b>하고, 후보 중 <b>사진이 있는 건 당신 사진과 직접 비교</b>해
+      '📷 사진도 유사'로 표시해요. 설명·색상·장소를 함께 적을수록 정확해집니다.
     </div>
   </div>
 
@@ -186,7 +187,7 @@ const I18N = {
     lostDate:"분실일(선택)", find:"찾기", orPhoto:"— 또는 사진으로 찾기 —",
     pickPhoto:"📷 사진 선택", searchPhoto:"사진으로 찾기",
     photoNote1:"잃어버린 물건이 찍힌(또는 비슷한) 사진이면 돼요. 사진엔 없는 <b>장소·날짜</b>는 위 설명/분실일에 적으면 함께 반영돼요.",
-    photoNote2:"⚠️ 습득물 데이터는 <b>사진이 없는 경우가 많아요.</b> 사진끼리 비교하는 게 아니라, 사진 속 물건의 <b>특징(종류·색상 등)을 읽어 텍스트로 검색</b>해요. 그래서 설명·색상·장소를 함께 적을수록 정확해집니다.",
+    photoNote2:"⚠️ 습득물은 <b>사진이 없는 경우가 많아요(약 22%만 보유).</b> 그래서 기본은 사진 속 <b>특징(종류·색상)을 읽어 텍스트로 검색</b>하고, 후보 중 <b>사진이 있는 건 당신 사진과 직접 비교</b>해 '📷 사진도 유사'로 표시해요. 설명·색상·장소를 함께 적을수록 정확해집니다.",
     matchResult:"매칭 결과", myReports:"내 신고 목록", refresh:"새로고침", loading:"불러오는 중…",
     browseTitle:"전체 습득물 둘러보기", browseDesc:"공개데이터로 수집된 습득물을 키워드·지역·날짜로 필터링해 살펴보세요. (AI 판정 없이 즉시 조회)",
     kwPh:"키워드 (예: 지갑, 에어팟, 카드)", allRegions:"전체 지역", foundDate:"습득일", searchBtn:"검색", reset:"초기화",
@@ -220,7 +221,7 @@ const I18N = {
     lostDate:"Date lost (optional)", find:"Search", orPhoto:"— or search by photo —",
     pickPhoto:"📷 Choose photo", searchPhoto:"Search by photo",
     photoNote1:"A photo of your item (or a similar one) works. A photo can't show <b>place/date</b>, so add them above.",
-    photoNote2:"⚠️ Many found items have <b>no photo.</b> We don't compare images — we read your photo's <b>features (type, color) and search by text.</b> Adding a description, color and place improves accuracy.",
+    photoNote2:"⚠️ Many found items have <b>no photo (only ~22% do).</b> So we read your photo's <b>features (type, color) and search by text</b>, and for candidates that <b>do have a photo we compare it directly with yours</b> ('📷 Photo match'). Adding a description, color and place improves accuracy.",
     matchResult:"Match results", myReports:"My reports", refresh:"Refresh", loading:"Loading…",
     browseTitle:"Browse all found items", browseDesc:"Browse collected found items by keyword, region and date. (Instant — no AI grading.)",
     kwPh:"Keyword (e.g., wallet, AirPods, card)", allRegions:"All regions", foundDate:"Found date", searchBtn:"Search", reset:"Reset",
