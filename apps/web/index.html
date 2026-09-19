@@ -214,7 +214,7 @@ const I18N = {
   en: {
     subtitle:"Describe your lost item in any language — we search Korea's public found-item data.",
     tabFind:"🔍 AI Search", tabBrowse:"📋 Browse all", register:"Report a lost item",
-    textPh:"e.g., I lost a black DAKS wallet on Seoul subway line 2 yesterday. My ID and cards were inside.",
+    textPh:"e.g., I lost a black wallet near Gangnam Station yesterday. — A station, area or landmark is enough; you don't need the subway line number or direction.",
     emailPh:"Email for alerts (optional) — we'll notify you when it matches",
     lostDate:"Date lost (optional)", find:"Search", orPhoto:"— or search by photo —",
     pickPhoto:"📷 Choose photo", searchPhoto:"Search by photo",
@@ -382,8 +382,8 @@ function regionExplain(ex) {
   if (LANG === "en") {
     const where = place ? `You lost it around <b>${esc(place)}</b>. ` : "";
     msg = `📍 ${where}In Korea, lost items often <b>travel along the route</b> (a subway or bus line) and turn up in other districts.
-      You may not know where that line goes — so we searched <b>every district it passes through</b> (below) and
-      <b>boosted</b> them in ranking (we don't filter — nothing gets excluded).`;
+      <b>You don't need to know the line number or direction</b> — a station, area or landmark is enough. We searched
+      <b>every district the route passes through</b> (below) and <b>boosted</b> them in ranking (we don't filter — nothing gets excluded).`;
   } else {
     const where = place ? `<b>${esc(place)}</b>에서 잃어버리셨네요. ` : "";
     msg = `📍 ${where}분실물은 <b>이동 경로(노선·교통편)를 따라</b> 다른 지역에서 발견되기도 해요.
