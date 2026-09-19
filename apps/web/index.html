@@ -302,7 +302,7 @@ function matchCard(m, idx) {
       ${(m.org_name||m.tel) ? `<div class="m-meta">🏛 ${esc(m.org_name)||'-'}${m.tel?` · ☎ <a href="tel:${esc(m.tel)}">${esc(m.tel)}</a>`:''}</div>` : ''}
       ${cleanDesc(m.description) ? `<div class="m-reason">📝 ${esc(cleanDesc(m.description).slice(0,140))}${cleanDesc(m.description).length>140?'…':''}</div>` : ''}
       ${m.reason ? `<div class="m-reason">💬 ${esc(m.reason)}</div>` : ''}
-      ${m.visual_score != null ? `<div class="m-reason" style="color:#047857"><b>📷 ${t('visualSim')} ${m.visual_score}</b>${m.visual_reason ? ` — ${esc(m.visual_reason)}` : ''}</div>` : ''}
+      ${m.visual_score != null ? `<div class="m-reason" style="color:${gradeColor(m.visual_score)}"><b>📷 ${t('visualSim')} ${m.visual_score}</b>${m.visual_reason ? ` <span class="muted">— ${esc(m.visual_reason)}</span>` : ''}</div>` : ''}
       ${btns}
     </div>
   </div>`;
