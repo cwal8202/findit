@@ -5,7 +5,7 @@
 4주 사이드 프로젝트(포트폴리오) — 코드 품질과 **설계 근거 문서화**를 중시.
 
 > 🚀 **라이브 데모**: https://findit-lost.duckdns.org 🔒 *(심사 기간 한시 운영)*
-> — 예: *"어제 2호선에서 검정 닥스 지갑 잃어버렸어요"*, *"동전지갑 잃어버렸어요"* 검색 →
+> — 예: *"어제 2호선에서 검정 닥스 지갑 잃어버렸어요"* 검색, **또는 📷 사진 업로드**(Vision 특징추출) →
 > 유력 후보 + 근거 + (사진 있으면) 썸네일 → *[내 물건이에요]* 시 보관기관·연락처 안내.
 >
 > 📄 모든 결정·실험·수치는 [`docs/PROGRESS.md`](docs/PROGRESS.md), 배포는 [`docs/DEPLOY.md`](docs/DEPLOY.md).
@@ -34,8 +34,7 @@
 → 의미 임베딩이 주력 랭커(한글↔영문·번역·오타 커버). **지역 가점**은 밀집 군집(검정지갑 193건 등)에서
 묻힌 정답을 MRR 0.084→0.857로 끌어올림(덧셈 소프트 w≈0.05, eval 검증). dep→구/시 gazetteer+지오코딩 커버 **95%**.
 
-**⏳ 남은 것**: 카카오 알림톡(현재 콘솔 알림) · 이미지 레인(사진 매칭) · 브라우저 확장 · 수집 스케줄 자동화 ·
-API 테스트(pytest) · 인증/PostgreSQL 이전.
+**⏳ 남은 것**: 카카오 알림톡(현재 이메일/콘솔 알림) · 브라우저 확장 · API 테스트(pytest) · 인증(user_id) · React/Vercel 프론트 분리.
 
 ---
 
@@ -48,8 +47,9 @@ API 테스트(pytest) · 인증/PostgreSQL 이전.
 
 ## 기술 스택
 
-Python 3.12 · FastAPI · LangGraph · Gemini API(embedding·grading) ·
-OpenSearch(nori, 768-dim HNSW KNN) · PostgreSQL(배포) / SQLite(로컬) · 바닐라 JS 웹(→React/확장) · Docker Compose · uv · ruff
+Python 3.12 · FastAPI · LangGraph · Gemini API(embedding·grading·**Vision 이미지 추출**) ·
+OpenSearch(nori, 768-dim HNSW KNN) · PostgreSQL(배포) / SQLite(로컬) · 바닐라 JS 웹(→React/확장) ·
+Docker Compose · **Caddy(자동 HTTPS)** · **GitHub Actions(자동배포)** · uv · ruff
 
 ## 레포 구조
 

@@ -536,6 +536,39 @@ open(찾는중) → [grade≥80] → candidate(유력 후보, 알림) → 사용
 - **경계(HITL)**: 시스템은 안내까지만, 전화·수령·공식신고는 사용자. 자동으로 남의 물건을 "네 것"이라 단정 X.
 - 수령 정보(org_name·tel)는 [FIND-18]에서 수집기가 색인(임베딩 미포함, 표시용).
 
+### ⭐ 실서비스 배포 — 단일 VPS + Docker Compose + HTTPS + 자동배포 (2026-09-19)
+
+**목표**: 외부 사용자가 접근하는 **실제 돌아가는 서비스**(심사 기간 한시 운영).
+
+- **호스팅 결정**: 프론트/백엔드/DB 분리(Vercel+개별서버) 대신 **VPS 1대에 docker-compose로 통합**.
+  근거: 4주 사이드 규모에 분리는 과설계 — 운영·비용·디버깅 단순함이 이득. 프론트는 백엔드가 서빙.
+  (React/Vercel 분리는 심사 후 고도화 항목으로 유보 — 잘 도는 라이브를 심사 직전 흔들지 않음.)
+- **스택**: Hetzner CX33(8GB) · Ubuntu · `docker-compose.prod.yml`(opensearch heap 2g + postgres16 + backend + caddy).
+- **SQLite→PostgreSQL**: `apps/store.py` 이중 백엔드(`DATABASE_URL`로 선택, `?`→`%s` 변환). 배포는 Postgres, 로컬은 SQLite.
+- **HTTPS**: DuckDNS(무료 서브도메인) + **Caddy**(리버스프록시, Let's Encrypt 자동 인증서/갱신). http→https 자동 리다이렉트.
+- **최신 데이터 유지**: `scripts/daily_collect.sh` + cron `0 0 * * *`(Asia/Seoul) — 매일 00시 어제분 수집·색인·재매칭.
+  비용: 서버 10일 ~$4, 임베딩 일 ~$0.02. OpenSearch는 외부 미노출(백엔드만 Caddy 뒤).
+- **자동배포(CI/CD)**: `.github/workflows/deploy.yml` — main push → GitHub Actions가 서버 SSH → `git pull` +
+  `docker compose up -d --build backend caddy` + `docker image prune -f`. 공개 레포라 **무료·무제한**.
+  접속정보는 Secrets(SSH_HOST/SSH_KEY)로 분리. Docker 레이어 캐시로 재배포 ~십수 초.
+- 라이브: `https://findit-lost.duckdns.org` (등록→Postgres 저장, 검색 grade 정상, 🔒 유효 인증서 확인).
+
+### ⭐ 이미지 레인 — 사진으로 분실물 찾기 (Gemini Vision) (2026-09-19)
+
+**설계 1-3 재확인**: 멀티모달 임베딩 학습 없이 **"특징 텍스트화"가 주력**. 사진을 벡터로 직접 매칭하지 않고,
+Vision으로 **텍스트 필드를 추출**해 **기존 텍스트 파이프라인을 그대로 재사용** — 레인 추가에 검색·가점·grade 로직 무변경.
+
+- **흐름**: 사진(+선택 메모) → `gemini.generate_json_image`(멀티모달 generateContent, inline_data) →
+  `extract_image`가 텍스트 추출과 **동일 필드 스키마**(item/brand/color/category/features) 반환 →
+  `graph.run_image`가 추출 필드로 검색용 text 합성 → **route→fanout→search→grade** 재사용 → 저장·알림·HITL 공유.
+- **경계 설계**: 사진은 **장소·날짜를 모름** → `place_context`/`lost_date`는 사용자 메모/분실일에서만 채움(추측 금지).
+  즉 사진=물건 특징, 메모=맥락. 두 신호를 각자 잘하는 데서만 취함.
+- **업로드**: 멀티파트 의존성(`python-multipart`) 추가 없이 **base64 JSON**(`POST /lost-items/image`) — 사진 1장 규모라 충분.
+- **웹**: '사진으로 찾기' 레인(파일선택+미리보기). 결과 렌더 공용화(`renderResult`)로 텍스트/사진 동일 UI.
+  결과에 **올린 사진 + Vision이 읽은 내용**을 노출 → "AI가 내 사진을 어떻게 이해했나" 투명성(HITL 신뢰).
+- **실측(라이브)**: 로고(파란 폰 일러스트) 입력 → Vision "스마트폰/파란색", 메모 "2호선"→지역집합 16구 →
+  후보 12건 1위 **grade 85 삼성폰(블루)**. Vision→검색→판정→저장 전 과정 프로덕션 동작 확인.
+
 ### ⚠ 반복 병목: Gemini 무료 임베딩 쿼터 (개발 루프 차단)
 
 - 이번 세션에서 임베딩 대량/자유질의 시 **5회 이상 429 RESOURCE_EXHAUSTED**. 소량 버스트만 허용, 회복에 10~15분.
