@@ -12,11 +12,13 @@ import smtplib
 import sys
 from email.message import EmailMessage
 from email.utils import formataddr
+from pathlib import Path
 from typing import Protocol
 
 from apps.api.config import settings
 
 TOP_OTHERS = 5  # 상위 매칭 외에 함께 보여줄 "비슷한 후보" 수
+_LOGO = Path(__file__).resolve().parent / "web" / "static" / "logo.jpg"  # 메일 인라인 로고(CID)
 
 
 def _emit(msg: str) -> None:
@@ -101,6 +103,7 @@ def _text_body(lost: dict, matches: list[dict]) -> str:
     lines += [
         "",
         "본인 물건이면 위 보관기관 연락처로 수령을 문의하세요.",
+        f"FindIt에서 전체 결과 보기: {settings.public_base_url}",
         "공식 조회: https://www.lost112.go.kr (경찰청 유실물 통합포털)",
         "(본 메일은 FindIt 자동 알림입니다. 최종 확인·수령은 본인이 진행하세요.)",
     ]
@@ -147,6 +150,7 @@ def _card_html(m: dict, primary: bool = False) -> str:
 
 def _html_body(lost: dict, matches: list[dict]) -> str:
     e = _html.escape
+    site = settings.public_base_url
     others = matches[1 : 1 + TOP_OTHERS]
     others_html = ""
     if others:
@@ -154,15 +158,29 @@ def _html_body(lost: dict, matches: list[dict]) -> str:
             f'<h3 style="font-size:14px;color:#374151;margin:16px 0 4px">비슷한 후보 {len(others)}건</h3>'
             + "".join(_card_html(o) for o in others)
         )
+    logo = ('<img src="cid:findit-logo" width="40" height="40" alt="FindIt" '
+            'style="border-radius:9px;display:block" />') if _LOGO.exists() else ""
     return (
         '<div style="font-family:-apple-system,BlinkMacSystemFont,\'Malgun Gothic\',sans-serif;'
         'max-width:560px;color:#1f2430">'
-        '<h2 style="font-size:18px">🔔 유력 후보를 찾았어요 — 확인해보세요</h2>'
-        f'<p>등록하신 \'<b>{e((lost.get("text") or "")[:40])}</b>\' 과(와) 일치할 가능성이 높은 '
-        '습득물이에요. 본인 물건이면 아래 보관기관으로 수령을 문의하세요.</p>'
+        # 브랜드 헤더 (로고 + 이름)
+        '<div style="display:flex;align-items:center;gap:10px;padding-bottom:14px;'
+        'border-bottom:1px solid #eee;margin-bottom:16px">'
+        f'{logo}<span style="font-size:20px;font-weight:800;color:#2563eb">FindIt</span>'
+        '<span style="font-size:12px;color:#6b7280">분실물 매칭 AI</span></div>'
+        '<h2 style="font-size:18px;margin:0 0 8px">🔔 유력 후보를 찾았어요 — 확인해보세요</h2>'
+        f'<p style="margin:0 0 12px">등록하신 \'<b>{e((lost.get("text") or "")[:40])}</b>\' 과(와) 일치할 '
+        '가능성이 높은 습득물이에요. 본인 물건이면 아래 보관기관으로 수령을 문의하세요.</p>'
         f'{_card_html(_top(matches), primary=True)}{others_html}'
-        '<p style="color:#888;font-size:12px;margin-top:16px">공식 조회: '
-        '<a href="https://www.lost112.go.kr">lost112.go.kr</a> (경찰청 유실물 통합포털). '
+        # 사이트 이동 CTA
+        f'<div style="text-align:center;margin:22px 0 6px">'
+        f'<a href="{e(site)}" style="display:inline-block;background:#2563eb;color:#fff;'
+        'text-decoration:none;padding:13px 30px;border-radius:10px;font-weight:700;font-size:15px">'
+        'FindIt에서 전체 결과 보기 →</a></div>'
+        f'<p style="text-align:center;font-size:12px;color:#6b7280;margin:0 0 16px">'
+        f'또는 주소창에 <a href="{e(site)}" style="color:#2563eb">{e(site)}</a> 입력</p>'
+        '<p style="color:#888;font-size:12px;margin-top:16px;border-top:1px solid #eee;padding-top:12px">'
+        '공식 조회: <a href="https://www.lost112.go.kr">lost112.go.kr</a> (경찰청 유실물 통합포털). '
         '최종 확인·수령은 본인이 진행하세요. 본 메일은 FindIt 자동 알림입니다.</p></div>'
     )
 
@@ -183,6 +201,12 @@ class EmailNotifier:
         msg["To"] = to
         msg.set_content(_text_body(lost, matches))
         msg.add_alternative(_html_body(lost, matches), subtype="html")
+        if _LOGO.exists():  # HTML 파트에 로고 인라인 첨부(cid:findit-logo)
+            try:
+                html_part = msg.get_payload()[-1]
+                html_part.add_related(_LOGO.read_bytes(), "image", "jpeg", cid="findit-logo")
+            except Exception:  # noqa: BLE001
+                pass
         try:
             with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=20) as s:
                 s.starttls()

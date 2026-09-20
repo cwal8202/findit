@@ -30,6 +30,7 @@ class Settings(BaseSettings):
 
     # 알림 채널: console | email  (email은 아래 SMTP 설정 필요, 미설정 시 console 폴백)
     notifier_channel: str = "console"
+    public_base_url: str = "https://findit-lost.duckdns.org"  # 메일 CTA·로고 URL 등 외부 링크 기준
     smtp_host: str = "smtp.gmail.com"
     smtp_port: int = 587
     smtp_user: str = ""            # 발신 계정(Gmail 주소)
