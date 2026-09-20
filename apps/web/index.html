@@ -175,7 +175,9 @@
   <div class="card">
     <h2 data-i18n="register">분실물 찾기</h2>
     <p class="lead">무슨 물건을, <b>어디서·언제</b> 잃어버렸는지 자유롭게 적으면 AI가 습득물에서 찾아드려요. 자세할수록 정확해요.</p>
-    <textarea id="text" data-i18n-ph="textPh" placeholder="예: 어제 2호선 지하철에서 검정색 닥스 지갑을 잃어버렸어요. 안에 신분증이랑 카드가 있었어요."></textarea>
+    <textarea id="text" data-i18n-ph="textPh" maxlength="500" oninput="$('textCount').textContent=this.value.length"
+      placeholder="예: 어제 2호선 지하철에서 검정색 닥스 지갑을 잃어버렸어요. 안에 신분증이랑 카드가 있었어요."></textarea>
+    <div style="text-align:right; font-size:12px; color:var(--sub); margin-top:2px"><span id="textCount">0</span>/500</div>
     <input type="email" id="email" data-i18n-ph="emailPh" placeholder="알림 받을 이메일 (선택) — 나중에 매칭되면 여기로 보내드려요"
            style="width:100%; margin-top:10px; border:1px solid var(--line); border-radius:10px; padding:11px; font:inherit;" />
     <div class="row">
@@ -301,6 +303,7 @@ const I18N = {
     hintPipe:"추출 → 지역 → 검색 → 판정 (10초쯤 걸려요)", hintPhoto:"사진 분석 → 검색 → 판정 → 사진 대조 (15초쯤 걸려요)",
     visualSim:"사진도 유사",
     needText:"분실물 설명을 입력하세요.", needPhoto:"먼저 사진을 선택하세요.", errPrefix:"오류: ", serverErr:"서버 오류 ",
+    invalidInput:"🔎 분실물 설명이 아닌 것 같아요. <b>무슨 물건을, 어디서·언제</b> 잃어버렸는지 적어주세요. (예: 어제 서울 2호선에서 검정 지갑 잃어버렸어요)",
     bannerCand:"🔔 유력 후보를 찾았어요. 아래에서 <b>맞는지 확인</b>해주세요. (확정은 본인이!)",
     bannerOpen:"🕓 지금은 딱 맞는 게 없어요. 접수해두고 새 습득물이 들어오면 자동으로 다시 찾아 알려드려요. (아래에 비슷한 후보가 있으면 확인해보세요)",
     extracted:"추출", fromPhoto:"사진에서 읽음", searchRegion:"검색 지역", candQueries:"후보 쿼리",
@@ -336,6 +339,7 @@ const I18N = {
     hintPipe:"Extract → region → search → grade (~10s)", hintPhoto:"Reading photo → search → grade → photo compare (~15s)",
     visualSim:"Photo match",
     needText:"Please describe your lost item.", needPhoto:"Please choose a photo first.", errPrefix:"Error: ", serverErr:"Server error ",
+    invalidInput:"🔎 This doesn't look like a lost-item description. Tell us <b>what you lost, where and when</b>. (e.g., I lost a black wallet on Seoul subway line 2 yesterday)",
     bannerCand:"🔔 We found strong candidates. <b>Check below</b> if any is yours. (You confirm — we never auto-claim.)",
     bannerOpen:"🕓 No exact match yet. We saved your report and will re-check automatically as new items arrive. (See similar candidates below.)",
     extracted:"Extracted", fromPhoto:"Read from photo", searchRegion:"Search area", candQueries:"Search queries",
@@ -478,6 +482,13 @@ function claimGuide(m) {
 }
 
 function renderResult(d, userPhoto) {
+  if (d.status === "invalid") {  // 분실물 설명이 아님 → 검색 안 함
+    _lid = null; _matches = [];
+    $("result").innerHTML = `<div class="banner open">${t('invalidInput')}</div>`;
+    $("resultCard").hidden = false;
+    $("resultCard").scrollIntoView({ behavior: "smooth", block: "nearest" });
+    return;
+  }
   _lid = d.id; _matches = d.matches || [];
   const ex = d.extracted || {};
   const exChips = [ex.item, ex.brand, ex.color, ex.category && ("분류:"+ex.category), ex.place_context, ex.lost_date, ex.features];

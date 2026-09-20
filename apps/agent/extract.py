@@ -15,6 +15,7 @@ _FIELDS = ("item", "brand", "color", "category", "place_context", "lost_date", "
 def extract(text: str, lost_date: str | None = None) -> dict:
     res = gemini.generate_json(_PROMPT.format(text=text, today=date.today().isoformat())) or {}
     out = {k: (res.get(k) or "").strip() for k in _FIELDS}
+    out["is_lost_report"] = bool(res.get("is_lost_report", True))  # 분실물 신고 아니면 false(검색 스킵)
     if lost_date:  # 사용자가 명시했으면 우선
         out["lost_date"] = lost_date
     return out

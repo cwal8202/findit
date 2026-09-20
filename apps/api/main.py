@@ -122,6 +122,9 @@ def register_lost_item(req: LostItemRequest) -> MatchResponse:
     from apps.agent import graph as agent_graph
 
     result = agent_graph.run(req.text, req.lost_date, req.lang or "ko")
+    if not result.get("extracted", {}).get("is_lost_report", True):  # 분실물 신고 아님 → 저장·검색·알림 없이 종료
+        return MatchResponse(id="", status="invalid", query=req.text,
+                             extracted=result.get("extracted", {}), matches=[])
     return _persist_and_respond(req.text, result, req.email or "")
 
 

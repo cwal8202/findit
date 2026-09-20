@@ -80,6 +80,11 @@ def n_grade(state: AgentState) -> dict:
     return {"matches": cands}
 
 
+def _valid_gate(state: AgentState) -> str:
+    """분실물 신고면 계속, 아니면(일반 질문·잡담 등) 즉시 종료 — 임베딩·검색·grade 토큰 절약."""
+    return "route" if state["extracted"].get("is_lost_report", True) else END
+
+
 def _build():
     g = StateGraph(AgentState)
     g.add_node("extract", n_extract)
@@ -88,7 +93,7 @@ def _build():
     g.add_node("search", n_search)
     g.add_node("grade", n_grade)
     g.add_edge(START, "extract")
-    g.add_edge("extract", "route")
+    g.add_conditional_edges("extract", _valid_gate, {"route": "route", END: END})
     g.add_edge("route", "fanout")
     g.add_edge("fanout", "search")
     g.add_edge("search", "grade")
