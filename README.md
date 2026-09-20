@@ -14,6 +14,8 @@
 >
 > 📄 모든 결정·실험·수치는 [`docs/PROGRESS.md`](docs/PROGRESS.md), 배포는 [`docs/DEPLOY.md`](docs/DEPLOY.md).
 
+![FindIt 랜딩](docs/screenshots/hero.png)
+
 ---
 
 ## 왜 FindIt? (경찰민원24·lost112 대비)
@@ -27,6 +29,18 @@
 - **다국어(외국인 접근성)** — 관공서는 한국어로만 검색되지만(영어로 치면 0건), FindIt은 **어떤 언어로 검색해도** 결과 + 화면·수령안내 다국어.
 
 > 포지셔닝: 관공서 데이터를 **대체가 아니라 보완** — 더 똑똑한 검색·매칭 + 접근성 레이어. 실제 수령·권리는 관공서 소관 → **HITL(사용자 확인)** 유지.
+
+---
+
+## 📸 화면
+
+| AI 매칭 결과 (근거·전화·지도) | 전체 둘러보기 (필터·목록) |
+|:---:|:---:|
+| [![AI 매칭](docs/screenshots/ai-match.png)](docs/screenshots/ai-match.png) | [![둘러보기](docs/screenshots/browse.png)](docs/screenshots/browse.png) |
+| **다국어 검색** (영어로도 결과·근거) | **이메일 알림** (매칭 시 발송) |
+| [![다국어](docs/screenshots/multilingual.png)](docs/screenshots/multilingual.png) | [![알림 메일](docs/screenshots/email.png)](docs/screenshots/email.png) |
+
+> [내 물건이에요] 확인 시 수령 안내(전화·여권 지참 방문·지도·lost112): [`docs/screenshots/retrieval.png`](docs/screenshots/retrieval.png)
 
 ---
 
