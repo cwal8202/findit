@@ -2,19 +2,20 @@
 
 > 분실물 매칭 AI 에이전트. 자연어로 분실물을 등록하면 경찰청·포털기관 습득물 데이터를
 > 수집해 하이브리드 검색 + LLM grading으로 매칭하고 알림하는 서비스.
-> **문서 갱신일: 2026-09-18**
+> **문서 갱신일: 2026-09-22**
 
 ---
 
 ## 0. 한눈에 보기
 
-- **현재 국면**: **제품 전체 동작**(수집→색인→검색+지역가점→grading→에이전트→DB→지속 재매칭→**이메일 알림**→**웹 UI**).
-  FIND-1~20 커밋·푸시. 검색 품질은 eval로 검증 완료.
-- **동작 흐름**: 자연어 신고 → 유력 후보 제시(HITL, 자동확정 X) → 사용자 [내 물건이에요]/[아니에요] →
-  확인 시 **수령 안내(보관기관·전화·lost112)**. 매칭되면 신고자 이메일로 알림(후보목록·이미지 썸네일 포함).
-- **다음 액션 후보**: 이미지 레인(사진으로 찾기) / API pytest / uniq 임베딩(품질↑, 재색인) / 수집 스케줄 자동화.
+- **현재 국면**: **라이브 서비스 배포 완료**(수집→색인→검색+지역가점→grading→에이전트→DB→지속 재매칭→**이메일 알림**→**웹 UI**).
+  FIND-1~60 커밋·푸시. VPS + Docker Compose + Caddy HTTPS + GitHub Actions 자동배포 + 매일 cron 수집으로 **https://findit-lost.duckdns.org** 운영 중(심사 기간 한시). 검색 품질은 eval로 검증 완료.
+- **동작 흐름**: 자연어/**사진** 신고 → 유력 후보 제시(HITL, 자동확정 X) → 사용자 [내 물건이에요]/[아니에요] →
+  확인 시 **수령 안내(보관기관·전화·지도·lost112)**. 매칭되면 신고자 이메일로 알림(후보목록·이미지 썸네일 포함).
+- **차별점 2가지**: ① 더 똑똑한 검색(자연어·의미 임베딩·사진 특징추출) ② **외국인 접근성**(다국어 UI + 다국어 검색 — 관공서는 한국어 전용).
+- **다음 액션 후보(심사 후 고도화)**: 이미지 임베딩(CLIP) 레인 / 카카오 알림톡(사업자 확보 시) / 인증(user_id) / React·Vercel 프론트 분리 / 브라우저 확장(MV3).
 - **최근 실측**: 지역 가점 hard셋 MRR 0.084→0.857 / gazetteer+지오코딩 95% / grading 근거·신뢰도 /
-  에이전트 "어제 2호선 검정 닥스 지갑"→DAKS 95점 / 지속 재매칭·이메일 알림·HITL 확인·수령안내 실동작.
+  에이전트 "어제 2호선 검정 닥스 지갑"→DAKS 95점 / 이미지 레인(Vision 특징추출)·다국어 검색·지속 재매칭·이메일 알림·HITL 확인·수령안내 라이브 동작.
 - **알림**: 이메일(EmailNotifier, SMTP). 카카오 알림톡은 **사업자등록 필수**라 비사업자 불가 → 이메일 채택.
 
 ---
@@ -42,7 +43,8 @@
    # 실 데이터 갱신(선택): uv run python -m apps.collector.run --source both --start 20260901 --end 20260901 --max 200 --enrich --rematch
    # eval: python eval/run_os.py / run_boost.py / run_grade.py
    ```
-7. **다음 작업 후보**: 이미지 레인(사진으로 찾기) / API pytest / uniq 임베딩(재색인) / 수집 스케줄 자동화 / 브라우저 확장.
+7. **배포/운영**: 실서비스는 VPS + `docker-compose.prod.yml`(OpenSearch+Postgres+backend+Caddy). 배포·HTTPS·자동배포·cron은 [`DEPLOY.md`](DEPLOY.md) 참고. main push → GitHub Actions 자동배포.
+8. **다음 작업 후보(심사 후 고도화)**: 이미지 임베딩(CLIP) 레인 / 카카오 알림톡(사업자 확보 시) / 인증(user_id) / React·Vercel 프론트 분리 / 브라우저 확장(MV3) / uniq 포함 임베딩 재색인.
 
 **주의**: `.env`(키)는 git에 없음(같은 컴퓨터엔 로컬에 존재). 다른 컴퓨터면 `.env` 새로 작성 필요.
 결제(Gemini 종량제) 활성화 상태 → rate limit 없음. 임베딩 캐시가 저장소에 포함되어 재임베딩 불필요.
@@ -666,43 +668,55 @@ Vision으로 **텍스트 필드를 추출**해 **기존 텍스트 파이프라�
 
 ---
 
-## 6. 지금까지 생성된 산출물
+## 6. 레포 구조 (현행)
 
 ```
 find_it/
-├─ police_lostfound.http              # 3개 엔드포인트 수동 테스트(.http) — ⚠️ 키 포함, 커밋 금지
-├─ fixtures/responses/                # 실 API 응답 샘플(진실의 원천)
-│   ├─ police_found_list.xml
-│   ├─ police_found_detail.xml        # fdPlace/uniq 포함
-│   ├─ portal_found_list.xml
-│   └─ portal_found_detail.xml
-├─ eval/data/
-│   ├─ police_corpus.xml (1,500건)
-│   ├─ portal_corpus.xml (500건)
-│   ├─ corpus.json (2,000건 정규화)
-│   └─ sample_readable.json (골든셋 작성용 표본 55건)
-└─ docs/PROGRESS.md                   # (이 문서)
+├─ apps/
+│   ├─ api/            FastAPI 앱: config·gemini·region·search·models·main (엔드포인트 11개)
+│   ├─ agent/          매칭 에이전트(LangGraph): extract·route·fanout·graph·rematch
+│   │   └─ prompts/    extract.txt · extract_image.txt · route.txt (프롬프트 파일 분리)
+│   ├─ collector/      수집기: client(data.go.kr XML)·normalize·run(CLI)
+│   ├─ web/            단일 페이지 웹(index.html + static/) — 랜딩·AI검색·둘러보기, 다국어
+│   ├─ store.py        분실물 저장소 (PostgreSQL/SQLite 이중 백엔드, DATABASE_URL로 선택)
+│   └─ notifier.py     알림 (Notifier 인터페이스 + Console/Email)
+├─ eval/               골든셋 + 성능 실험(BM25/EMB/HYB/가점 스윕/grading, OpenSearch 색인·검색·데모)
+│   └─ data/           corpus.json(2,000건)·emb_cache·grade_cache·gazetteer·geocoded·골든셋 등
+├─ scripts/            backfill_region · geocode_region · daily_collect.sh(cron 수집)
+├─ infra/
+│   ├─ docker-compose.yml          로컬 OpenSearch(nori)
+│   ├─ opensearch/                 Dockerfile + mappings/found_items.json
+│   └─ caddy/Caddyfile             프로덕션 리버스프록시(자동 HTTPS)
+├─ fixtures/responses/             실 API 응답 샘플(진실의 원천, XML 4종)
+├─ tests/                          pytest (핵심 로직 28개, 외부서비스 목킹)
+├─ docs/                           PROGRESS.md(이 문서) · DEPLOY.md · screenshots/
+├─ .github/workflows/deploy.yml    main push → 서버 SSH 자동배포
+├─ docker-compose.prod.yml         프로덕션(OpenSearch+Postgres+backend+Caddy)
+├─ Dockerfile · pyproject.toml · uv.lock · README.md
+└─ .env / .env.example             시크릿(.env는 gitignore) · police_lostfound.http도 gitignore
 ```
 
-> ⚠️ **보안**: `serviceKey`는 시크릿. 실제 구성에선 `.env`/pydantic-settings로 분리하고
-> `*.http`은 `.gitignore` 대상. 아직 git init 전.
+> ⚠️ **보안**: `serviceKey`·`GEMINI_API_KEY` 등은 `.env`/pydantic-settings로 분리(코드·문서에 값 없음).
+> `.env`·`police_lostfound.http`·`data/findit.db`(개인정보)는 `.gitignore` 대상. 공개 레포: https://github.com/cwal8202/findit
 
 ---
 
-## 7. 남은 단계 (로드맵)
+## 7. 로드맵 (상태)
 
-| 단계 | 내용 | 우선순위 |
+| 단계 | 내용 | 상태 |
 |------|------|:--:|
-| **0. 기반** | 레포 스캐폴딩 + uv/ruff + config + `.env` + CLAUDE.md + git init + ADR 기록 | |
-| **1. 검색 코어(특징 레인)** ⭐ | 정규화 `FoundItem`(pydantic) + XML 파서 + OpenSearch 매핑(nori/keyword/date/vector) + 시드 + `GET /found-items/search`(BM25+가점) + pytest | **최우선** |
-| **2. 의미검색 고도화** | 텍스트 임베딩(768-dim) 하이브리드 + LLM grading 재정렬 + eval 골든셋 | |
-| **3. 이미지 레인** | Vision 카테고리별 특징추출(배치) + 멀티모달 임베딩 `image_vector` KNN | |
-| **4. 분실물 등록 + 에이전트** | 자연어 등록(LangGraph 등록 그래프) + 매칭 그래프(질의 fan-out) | |
-| **5. 수집기(collector)** | 실 API 페이징 + 상세 enrich 배치, 재시도/타임아웃 클라이언트 | |
-| **6. 알림/채널** | `Notifier` 인터페이스 + `ConsoleNotifier` → 카카오, HITL 신고 | |
-| **7. 프론트/확장/인프라** | web 3화면, extension(MV3), docker-compose, k8s | |
+| **0. 기반** | 레포 스캐폴딩 + uv/ruff + config + `.env` + git + ADR 기록 | ✅ |
+| **1. 검색 코어(특징 레인)** | 정규화 `FoundItem` + XML 파서 + OpenSearch 매핑(nori/keyword/date/vector) + 시드 + `GET /found-items/search`(BM25+가점) + pytest | ✅ |
+| **2. 의미검색 고도화** | 텍스트 임베딩(768-dim) KNN + 지역 soft 가점 + LLM grading 재정렬 + eval 골든셋(MRR 0.63→0.96) | ✅ |
+| **3. 이미지 레인** | Vision 카테고리별 특징추출 → 텍스트 파이프라인 합류 + Gemini 사진 대조(visual_score) | ✅ (CLIP 이미지 임베딩 KNN은 심사 후) |
+| **4. 분실물 등록 + 에이전트** | 자연어/사진 등록(LangGraph: extract→route→fanout→search→grade) + DB 저장 + 지속 재매칭 + HITL 확인/수령안내 | ✅ |
+| **5. 수집기(collector)** | 실 API 페이징 + 상세 enrich + 임베딩 + `_bulk` upsert, `--rematch`, cron 일일 수집 | ✅ |
+| **6. 알림/채널** | `Notifier` 인터페이스 + Console/**Email**(SMTP) | ✅ (카카오 알림톡은 사업자 확보 후) |
+| **7. 웹/다국어** | 랜딩 + AI검색 + 전체 둘러보기(필터·목록) + 다국어(Google 번역 위젯 + 서버 검색어 번역) | ✅ |
+| **8. 배포/운영** | VPS + docker-compose(OpenSearch+Postgres+backend+Caddy) + HTTPS + GitHub Actions 자동배포 + cron | ✅ (라이브) |
+| **9. 심사 후 고도화** | 이미지 임베딩(CLIP) 레인 · 카카오 알림톡 · 인증(user_id) · React/Vercel 프론트 분리 · 브라우저 확장(MV3) | ⏳ |
 
-> **바로 다음**: eval 골든셋 작성 → baseline 채점으로 첫 성능 숫자 확보(단계 1의 품질 근거 마련).
+> **현재**: 전체 파이프라인 라이브 배포 완료(https://findit-lost.duckdns.org). 남은 것은 9단계(심사 후 고도화).
 
 ---
 

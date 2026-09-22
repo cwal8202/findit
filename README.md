@@ -94,7 +94,7 @@ eval/        골든셋 + 성능 실험 (BM25/임베딩/하이브리드/스윕, O
 infra/       docker-compose + OpenSearch(nori) Dockerfile + 인덱스 매핑
 fixtures/    공공 API 실응답 샘플 (진실의 원천)
 docs/        PROGRESS.md (설계·실험 기록)
-apps/api/       FastAPI 엔드포인트 (GET /found-items/search, POST /lost-items, GET /lost-items, GET /)
+apps/api/       FastAPI 엔드포인트 (/found-items/search·/browse, /lost-items[+/image], /confirm·/dismiss·/email, /health, GET /)
 apps/agent/     매칭 에이전트 (LangGraph: extract→route→fanout→search→grade) + rematch(지속 재매칭)
 apps/collector/ 수집기 (data.go.kr 습득물 → 상세 enrich → 임베딩 → 색인, --rematch)
 apps/store.py   분실물 저장소 (PostgreSQL/SQLite 이중 백엔드, DATABASE_URL로 선택)
