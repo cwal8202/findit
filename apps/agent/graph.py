@@ -197,11 +197,12 @@ def run_image(image_b64: str, mime: str = "image/jpeg",
     return state
 
 
-def match_stored(text: str, extracted: dict, region_set: list, queries: list) -> list[dict]:
+def match_stored(text: str, extracted: dict, region_set: list, queries: list,
+                 lang: str = "ko") -> list[dict]:
     """저장된 분실물 재매칭 — 추출·라우팅 생략(이미 있음), 검색+grade만.
-    지속 재매칭이 open 항목마다 호출(LLM 추출/라우팅 재호출 없이 저렴)."""
+    지속 재매칭이 open 항목마다 호출(LLM 추출/라우팅 재호출 없이 저렴). 판정 근거는 신고자 언어(lang)로."""
     state: AgentState = {"text": text, "extracted": extracted,
-                         "region_set": region_set, "queries": queries}
+                         "region_set": region_set, "queries": queries, "lang": lang}
     state.update(n_search(state))
     state.update(n_grade(state))
     return state.get("matches", [])

@@ -18,6 +18,7 @@ from apps import store
 
 from . import search as search_mod
 from .config import settings
+from .gemini import normalize_lang
 from .models import (
     AlertSettingsRequest,
     ConfirmRequest,
@@ -75,7 +76,7 @@ def search_found_items(
 
 
 def _persist_and_respond(text: str, result: dict, email: str,
-                         notify_weak: bool = False) -> MatchResponse:
+                         notify_weak: bool = False, lang: str = "ko") -> MatchResponse:
     """매칭 결과 저장 + (유력/옵트인 약한 후보면) 알림 + 응답 구성. 텍스트/사진 신고 공용."""
     from apps.agent.rematch import alert_level, watch_until_after
 
@@ -92,14 +93,14 @@ def _persist_and_respond(text: str, result: dict, email: str,
     lid = store.add(
         text, result.get("extracted", {}), result.get("region_set", []),
         result.get("queries", []), top, best_grade, status=status, email=email,
-        notify_weak=notify_weak, watch_until=watch_until,
+        notify_weak=notify_weak, watch_until=watch_until, lang=lang,
     )
     if level:  # 유력 후보 → 알림 / 약한 후보(옵트인) → 참고 알림 + 중복 방지 기록
         from apps.notifier import notifier
         if level == "weak":
             store.mark_weak_notified(lid, top.get("atc_id"))
         notifier.notify(
-            {"id": lid, "user_id": "anon", "text": text, "email": email}, raw_matches,
+            {"id": lid, "user_id": "anon", "text": text, "email": email, "lang": lang}, raw_matches,
             weak=(level == "weak"),
         )
     return MatchResponse(
@@ -125,7 +126,7 @@ def _step_payload(part: dict) -> dict:
             for k, v in part.items()}
 
 
-def _stream_match(steps, email: str, notify_weak: bool, text: str | None = None):
+def _stream_match(steps, email: str, notify_weak: bool, text: str | None = None, lang: str = "ko"):
     """단계 스트림 → SSE 이벤트. 끝나면 기존과 동일하게 저장·알림 후 `result`(MatchResponse).
 
     이벤트: extract · route · fanout · search(판정 전 후보) · grade · [visual] · result | error
@@ -144,7 +145,7 @@ def _stream_match(steps, email: str, notify_weak: bool, text: str | None = None)
         if not ex.get("is_lost_report", True):  # 분실물 신고 아님 → 저장·검색·알림 없이 종료
             resp = MatchResponse(id="", status="invalid", query=query, extracted=ex, matches=[])
         else:
-            resp = _persist_and_respond(query, final, email, notify_weak)
+            resp = _persist_and_respond(query, final, email, notify_weak, lang)
         yield _sse("result", resp.model_dump())
     except Exception:  # noqa: BLE001 — 스트림 도중 실패는 HTTP 상태로 못 알리므로 이벤트로
         traceback.print_exc()
@@ -156,8 +157,9 @@ def register_lost_item_stream(req: LostItemRequest) -> StreamingResponse:
     """`POST /lost-items`의 실시간 버전 — 추출·지역·검색·판정을 단계마다 SSE로 흘려보냄."""
     from apps.agent import graph as agent_graph
 
-    steps = agent_graph.stream(req.text, req.lost_date, req.lang or "ko")
-    return StreamingResponse(_stream_match(steps, req.email or "", req.notify_weak, text=req.text),
+    lang = normalize_lang(req.lang)
+    steps = agent_graph.stream(req.text, req.lost_date, lang)
+    return StreamingResponse(_stream_match(steps, req.email or "", req.notify_weak, text=req.text, lang=lang),
                              media_type="text/event-stream", headers=_SSE_HEADERS)
 
 
@@ -166,9 +168,10 @@ def register_lost_item_image_stream(req: LostItemImageRequest) -> StreamingRespo
     """`POST /lost-items/image`의 실시간 버전 — 사진 분석·지역·검색·판정·사진 대조를 단계마다 SSE로."""
     from apps.agent import graph as agent_graph
 
+    lang = normalize_lang(req.lang)
     steps = agent_graph.stream_image(req.image_b64, req.mime, note=req.note,
-                                     lost_date=req.lost_date, lang=req.lang or "ko")
-    return StreamingResponse(_stream_match(steps, req.email or "", req.notify_weak),
+                                     lost_date=req.lost_date, lang=lang)
+    return StreamingResponse(_stream_match(steps, req.email or "", req.notify_weak, lang=lang),
                              media_type="text/event-stream", headers=_SSE_HEADERS)
 
 
@@ -194,11 +197,12 @@ def register_lost_item(req: LostItemRequest) -> MatchResponse:
     """
     from apps.agent import graph as agent_graph
 
-    result = agent_graph.run(req.text, req.lost_date, req.lang or "ko")
+    lang = normalize_lang(req.lang)
+    result = agent_graph.run(req.text, req.lost_date, lang)
     if not result.get("extracted", {}).get("is_lost_report", True):  # 분실물 신고 아님 → 저장·검색·알림 없이 종료
         return MatchResponse(id="", status="invalid", query=req.text,
                              extracted=result.get("extracted", {}), matches=[])
-    return _persist_and_respond(req.text, result, req.email or "", req.notify_weak)
+    return _persist_and_respond(req.text, result, req.email or "", req.notify_weak, lang)
 
 
 @app.post("/lost-items/image", response_model=MatchResponse)
@@ -209,10 +213,11 @@ def register_lost_item_image(req: LostItemImageRequest) -> MatchResponse:
     """
     from apps.agent import graph as agent_graph
 
+    lang = normalize_lang(req.lang)
     result = agent_graph.run_image(req.image_b64, req.mime, note=req.note,
-                                   lost_date=req.lost_date, lang=req.lang or "ko")
+                                   lost_date=req.lost_date, lang=lang)
     return _persist_and_respond(result.get("text", "사진 신고"), result, req.email or "",
-                                req.notify_weak)
+                                req.notify_weak, lang)
 
 
 def _public_item(it: dict) -> dict:
@@ -273,7 +278,8 @@ def update_lost_item_alerts(lid: str, req: AlertSettingsRequest) -> dict:
     sent_to = None
     if email and email != (item.get("email") or "") and req.matches:
         from apps.notifier import notifier
-        notifier.notify({"id": lid, "user_id": "anon", "text": item.get("text", ""), "email": email},
+        notifier.notify({"id": lid, "user_id": "anon", "text": item.get("text", ""), "email": email,
+                         "lang": item.get("lang") or "ko"},
                         req.matches)
         store.mark_weak_notified(lid, req.matches[0].get("atc_id"))  # 방금 받은 1위는 약한 알림 재발송 안 함
         sent_to = email

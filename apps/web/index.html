@@ -401,6 +401,14 @@ const I18N = {
 };
 // UI 기본 언어는 한국어 고정. 다국어 표시는 Google 번역 위젯(#langPicker)이 담당.
 const LANG = "ko";
+// 서버에 보낼 사용자 언어(판정 근거·알림 메일 언어). 화면 표시는 LANG=ko + 번역 위젯이 담당.
+// 1) 번역 위젯에서 고른 언어  2) 입력에 한글이 있으면 ko  3) 그 외 브라우저 언어
+function userLang(text) {
+  const m = document.cookie.match(/(?:^|;\s*)googtrans=\/[^/;]*\/([^;]+)/);
+  if (m && m[1] && m[1] !== "ko") return decodeURIComponent(m[1]);
+  if (text && /[가-힣]/.test(text)) return "ko";
+  return navigator.language || "ko";
+}
 const t = (k, ...a) => { const v = (I18N[LANG] || I18N.ko)[k]; return typeof v === "function" ? v(...a) : (v ?? k); };
 const mapUrl = (m) => "https://www.google.com/maps/search/?api=1&query=" +
   encodeURIComponent(m.org_name || [m.region, m.dep_place].filter(Boolean).join(" ") || m.dep_place || "");
@@ -716,7 +724,7 @@ async function registerLost() {
   $("hint").textContent = "";
   try {
     const body = { text, lost_date: $("lostDate").value || null, email: $("email").value.trim() || null,
-                   notify_weak: $("notifyWeak").checked, lang: LANG };
+                   notify_weak: $("notifyWeak").checked, lang: userLang(text) };
     await runMatchStream("/lost-items/stream", body);
   } catch (e) {
     $("hint").textContent = t('errPrefix') + e.message;
@@ -749,7 +757,8 @@ async function registerImage() {
   try {
     const body = { image_b64: _photoB64, mime: _photoMime,
                    note: $("text").value.trim(), lost_date: $("lostDate").value || null,
-                   email: $("email").value.trim() || null, notify_weak: $("notifyWeak").checked, lang: LANG };
+                   email: $("email").value.trim() || null, notify_weak: $("notifyWeak").checked,
+                   lang: userLang($("text").value.trim()) };
     await runMatchStream("/lost-items/image/stream", body, _photoDataUrl);
   } catch (e) {
     $("hintImg").textContent = t('errPrefix') + e.message;

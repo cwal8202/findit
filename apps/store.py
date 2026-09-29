@@ -90,13 +90,14 @@ def init() -> None:
             notify_weak INTEGER DEFAULT 0,
             weak_notified TEXT,
             watch_until TEXT,
+            lang TEXT DEFAULT 'ko',
             created_at TEXT,
             matched_at TEXT
         )
     """)
     # 기존 DB 누락 컬럼 마이그레이션 (운영 Postgres도 테이블이 이미 있어 CREATE로는 안 생김)
     added = {"email": "TEXT", "dismissed": "TEXT", "notify_weak": "INTEGER DEFAULT 0",
-             "weak_notified": "TEXT", "watch_until": "TEXT"}
+             "weak_notified": "TEXT", "watch_until": "TEXT", "lang": "TEXT DEFAULT 'ko'"}
     if _PG:
         for col, typ in added.items():
             _run(f"ALTER TABLE lost_items ADD COLUMN IF NOT EXISTS {col} {typ}")
@@ -122,16 +123,16 @@ def _to_dict(d: dict) -> dict:
 def add(text: str, extracted: dict, region_set: list, queries: list,
         best_match: dict | None, best_grade: int | None,
         status: str = "open", user_id: str = "anon", email: str = "",
-        notify_weak: bool = False, watch_until: str | None = None) -> str:
+        notify_weak: bool = False, watch_until: str | None = None, lang: str = "ko") -> str:
     lid = uuid.uuid4().hex[:12]
     _run(
         "INSERT INTO lost_items (id,user_id,email,text,extracted,region_set,queries,"
-        "status,best_match,best_grade,notify_weak,watch_until,created_at,matched_at)"
-        " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        "status,best_match,best_grade,notify_weak,watch_until,lang,created_at,matched_at)"
+        " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         (lid, user_id, email, text, json.dumps(extracted, ensure_ascii=False),
          json.dumps(region_set, ensure_ascii=False), json.dumps(queries, ensure_ascii=False),
          status, json.dumps(best_match, ensure_ascii=False) if best_match else None,
-         best_grade, int(notify_weak), watch_until, _now(), _now() if status == "matched" else None),
+         best_grade, int(notify_weak), watch_until, lang or "ko", _now(), _now() if status == "matched" else None),
     )
     return lid
 

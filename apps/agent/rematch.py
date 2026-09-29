@@ -61,7 +61,8 @@ def rematch_open(verbose: bool = True) -> list[dict]:
                 print(f"  · {row['id']} '{row['text'][:24]}' 알림 기간 만료 → expired")
             continue
         matches = graph.match_stored(
-            row["text"], row["extracted"] or {}, row["region_set"] or [], row["queries"] or []
+            row["text"], row["extracted"] or {}, row["region_set"] or [], row["queries"] or [],
+            lang=row.get("lang") or "ko",
         )
         dismissed = set(row.get("dismissed") or [])  # '아니에요' 한 후보 제외
         matches = [m for m in matches if m.get("atc_id") not in dismissed]

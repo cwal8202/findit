@@ -57,7 +57,7 @@
   · 웹은 `…/stream`(SSE)으로 **추출 → 지역 → 검색어 → 검색 → 판정을 실시간 표시**(판정 전 후보를 먼저 보여줌)
 - **전체 둘러보기**: `GET /found-items/browse` — 키워드·지역·날짜 필터 + 최신순 목록(임베딩·LLM 없이 즉시)
 - **웹**: 랜딩(소개) + 탭 `[🔍 AI로 찾기 | 📋 전체 둘러보기]` — 등록/사진 → 매칭 결과(근거·썸네일·지도) → HITL 확인 → 최근 신고 목록
-- **다국어**: 어떤 언어로 검색해도 결과(서버가 검색어 번역) + 화면·수령안내 다국어(Google 번역 위젯)
+- **다국어**: 어떤 언어로 검색해도 결과(서버가 검색어 번역) + 화면·수령안내 다국어(Google 번역 위젯) + **알림 메일·판정 근거도 신고자 언어로**(13개 언어, 장소는 한국어 원문 병기)
 - **지속 재매칭 + 알림**: 신고 저장(open) → 새 습득물 유입마다 재매칭 → 성립 시 **이메일 알림**(로고·매칭 근거·사이트 버튼 포함).
   결과창 **알림 설정**에서 이메일·**알림 기간(7~180일, 기본 30일 — 지나면 재매칭 중단)**·**약한 후보(grade 50~79) '참고' 알림** 옵트인을 변경
 - **매일 수집(cron 00:00 KST)**: 습득물은 며칠에 걸쳐 등록되므로 **최근 7일 창을 매일 재조회**, 이미 색인된 항목은 건너뛰고
@@ -74,7 +74,7 @@
 → 의미 임베딩이 주력 랭커(한글↔영문·번역·오타 커버). **지역 가점**은 밀집 군집(검정지갑 193건 등)에서
 묻힌 정답을 MRR 0.084→0.857로 끌어올림(덧셈 소프트 w≈0.05, eval 검증). dep→구/시 gazetteer+지오코딩 커버 **95%**.
 
-**✅ 테스트**: `uv run pytest` — 핵심 로직 63개(fan-out·지역가점·store 생애주기·정규화·notifier·약한 후보 알림·알림 기간·수집기·실시간 스트림·검색 부스트·API), 외부서비스 불필요(목킹).
+**✅ 테스트**: `uv run pytest` — 핵심 로직 79개(fan-out·지역가점·store 생애주기·정규화·notifier·약한 후보 알림·알림 기간·수집기·실시간 스트림·다국어 메일·검색 부스트·API), 외부서비스 불필요(목킹).
 
 **⏳ 남은 것**: 카카오 알림톡(현재 이메일/콘솔 알림) · 브라우저 확장 · 인증(user_id) · React/Vercel 프론트 분리 · 이미지 임베딩(CLIP) 검색.
 
@@ -100,7 +100,7 @@ eval/        골든셋 + 성능 실험 (BM25/임베딩/하이브리드/스윕, O
 infra/       로컬 docker-compose + OpenSearch(nori) Dockerfile + 인덱스 매핑 + Caddyfile(프로덕션 HTTPS)
 fixtures/    공공 API 실응답 샘플 (진실의 원천)
 scripts/     daily_collect.sh(cron 일일 수집) · region 백필/지오코딩
-tests/       pytest 63개 (외부 서비스 목킹)
+tests/       pytest 79개 (외부 서비스 목킹)
 docs/        PROGRESS.md (설계·실험·결정 기록) · DEPLOY.md (배포·운영) · screenshots/
 apps/api/       FastAPI 엔드포인트 13개 (/found-items/search·/browse, /lost-items[+/image, /stream], /alerts·/confirm·/dismiss, /health, GET /)
 apps/agent/     매칭 에이전트 (LangGraph: extract→route→fanout→search→grade, 단계 스트림) + rematch(지속 재매칭·알림 기간)

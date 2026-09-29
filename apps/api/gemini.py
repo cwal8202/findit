@@ -111,7 +111,7 @@ def compare_images(user_b64: str, cand_b64: str, user_mime: str = "image/jpeg",
     """사용자 사진 ↔ 습득물 사진 직접 대조(멀티모달). {"score","reason"} 또는 None(실패)."""
     prompt = _COMPARE_PROMPT
     if lang != "ko":
-        prompt += f"\n중요: 'reason'은 {_LANG_NAME.get(lang, 'English')}로 작성하세요."
+        prompt += f"\n중요: 'reason'은 {lang_name(lang)}로 작성하세요."
     url = f"{_BASE}/{settings.gemini_grade_model}:generateContent?key={settings.gemini_api_key}"
     body = {
         "contents": [{"parts": [
@@ -150,7 +150,51 @@ def embed_texts(texts: list[str], chunk: int = 50) -> list[list[float]]:
     return out
 
 
-_LANG_NAME = {"en": "English", "ja": "Japanese", "zh": "Chinese", "ko": "Korean"}
+_LANG_NAME = {  # 웹 번역 위젯이 제공하는 13개 언어 + 한국어
+    "ko": "Korean", "en": "English", "ja": "Japanese", "zh": "Chinese",
+    "zh-CN": "Simplified Chinese", "zh-TW": "Traditional Chinese", "vi": "Vietnamese", "th": "Thai",
+    "id": "Indonesian", "ms": "Malay", "hi": "Hindi", "fr": "French", "es": "Spanish", "ru": "Russian",
+    "de": "German",
+}
+
+
+def normalize_lang(code: str | None) -> str:
+    """사용자 언어 코드 정리: 'en-US'→'en', 'zh-cn'→'zh-CN'. 형식이 이상하면 'ko'(프롬프트 주입 방지)."""
+    code = (code or "").strip()
+    if not code or len(code) > 10 or not all(ch.isalpha() or ch == "-" for ch in code):
+        return "ko"
+    base, _, region = code.partition("-")
+    base = base.lower()
+    if base == "zh":
+        return "zh-TW" if region.upper() in ("TW", "HK", "MO") else "zh-CN"
+    return base
+
+
+def lang_name(code: str) -> str:
+    return _LANG_NAME.get(code) or _LANG_NAME.get(code.split("-")[0]) or f"the language '{code}'"
+
+
+_TRANSLATE_PROMPT = """아래 JSON의 각 값(한국어)을 {lname}로 번역하세요. 분실물 알림 메일에 들어갈 문구입니다.
+규칙:
+- 키는 그대로, 값만 번역. JSON 객체 하나만 출력.
+- {{t}} {{n}} {{url}} 같은 중괄호 자리표시자, URL, 숫자, 이모지는 바꾸지 말 것.
+- 키가 "place_"로 시작하면 장소·기관 이름: "한국어 원문 ({lname} 번역 또는 로마자 표기)" 형식으로
+  (예: "강남경찰서 (Gangnam Police Station)"). 보관기관에 그대로 보여줄 수 있게 한국어 원문을 반드시 유지.
+- 빈 값은 빈 값으로.
+
+{payload}"""
+
+
+def translate_strings(strings: dict[str, str], lang: str) -> dict[str, str] | None:
+    """한국어 문자열 dict → 사용자 언어 dict(키 유지). 실패·누락 시 None(호출부가 폴백)."""
+    if not strings:
+        return {}
+    prompt = _TRANSLATE_PROMPT.format(lname=lang_name(lang),
+                                      payload=json.dumps(strings, ensure_ascii=False, indent=1))
+    res = generate_json(prompt)
+    if not isinstance(res, dict) or not all(isinstance(res.get(k), str) for k in strings):
+        return None
+    return {k: res[k] for k in strings}
 
 
 def grade(query: str, candidates: list[dict], lang: str = "ko") -> list[dict]:
@@ -166,7 +210,7 @@ def grade(query: str, candidates: list[dict], lang: str = "ko") -> list[dict]:
     )
     prompt = _GRADE_PROMPT.format(query=query, candidates=lines)
     if lang != "ko":  # 근거 + 물품명/설명을 사용자 언어로(원본은 한국어라 얹어서 번역)
-        lname = _LANG_NAME.get(lang, "English")
+        lname = lang_name(lang)
         prompt += (
             f'\n\n중요: 각 항목 JSON에 아래를 모두 포함하고 값은 {lname}로 작성하세요 — '
             f'"reason"(한 줄 근거), "name_en"(물품의 간결한 {lname} 이름, 예: "Black leather wallet"), '

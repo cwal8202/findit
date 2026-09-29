@@ -52,7 +52,7 @@ def test_alert_level_boundaries(grade, weak_on, expected):
 
 def test_rematch_weak_sent_once_and_stays_open(monkeypatch, fake):
     lid = store.add("검정 지갑", {}, [], [], None, None, email="me@x.com", notify_weak=True)
-    monkeypatch.setattr(rematch.graph, "match_stored", lambda *a: _matches("A_1", 60))
+    monkeypatch.setattr(rematch.graph, "match_stored", lambda *a, **k: _matches("A_1", 60))
 
     rematch.rematch_open(verbose=False)
     rematch.rematch_open(verbose=False)  # 같은 후보 → 재알림 없음
@@ -65,23 +65,23 @@ def test_rematch_weak_sent_once_and_stays_open(monkeypatch, fake):
 
 def test_rematch_weak_new_candidate_alerts_again(monkeypatch, fake):
     store.add("검정 지갑", {}, [], [], None, None, email="me@x.com", notify_weak=True)
-    monkeypatch.setattr(rematch.graph, "match_stored", lambda *a: _matches("A_1", 60))
+    monkeypatch.setattr(rematch.graph, "match_stored", lambda *a, **k: _matches("A_1", 60))
     rematch.rematch_open(verbose=False)
-    monkeypatch.setattr(rematch.graph, "match_stored", lambda *a: _matches("B_1", 70))
+    monkeypatch.setattr(rematch.graph, "match_stored", lambda *a, **k: _matches("B_1", 70))
     rematch.rematch_open(verbose=False)
     assert fake.sent == [("A_1", True), ("B_1", True)]
 
 
 def test_rematch_no_optin_keeps_old_behavior(monkeypatch, fake):
     store.add("검정 지갑", {}, [], [], None, None, email="me@x.com")  # notify_weak 기본 False
-    monkeypatch.setattr(rematch.graph, "match_stored", lambda *a: _matches("A_1", 70))
+    monkeypatch.setattr(rematch.graph, "match_stored", lambda *a, **k: _matches("A_1", 70))
     rematch.rematch_open(verbose=False)
     assert fake.sent == []
 
 
 def test_rematch_strong_promotes_candidate(monkeypatch, fake):
     lid = store.add("검정 지갑", {}, [], [], None, None, email="me@x.com", notify_weak=True)
-    monkeypatch.setattr(rematch.graph, "match_stored", lambda *a: _matches("A_1", 90))
+    monkeypatch.setattr(rematch.graph, "match_stored", lambda *a, **k: _matches("A_1", 90))
     rematch.rematch_open(verbose=False)
     assert fake.sent == [("A_1", False)]
     assert store.get(lid)["status"] == "candidate"

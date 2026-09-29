@@ -56,7 +56,7 @@ def test_watch_until_after_clamps():
 def test_expired_report_is_not_rematched(monkeypatch, fake):
     lid = store.add("검정 지갑", {}, [], [], None, None, email="me@x.com", watch_until=_iso(-1))
     called = []
-    monkeypatch.setattr(rematch.graph, "match_stored", lambda *a: called.append(1) or [])
+    monkeypatch.setattr(rematch.graph, "match_stored", lambda *a, **k: called.append(1) or [])
     rematch.rematch_open(verbose=False)
     assert called == []                          # 검색·LLM 호출 없음
     assert store.get(lid)["status"] == "expired"
@@ -65,7 +65,7 @@ def test_expired_report_is_not_rematched(monkeypatch, fake):
 def test_active_report_is_rematched(monkeypatch, fake):
     lid = store.add("검정 지갑", {}, [], [], None, None, email="me@x.com", watch_until=_iso(10))
     monkeypatch.setattr(rematch.graph, "match_stored",
-                        lambda *a: [{"atc_id": "A_1", "grade": 90, "score": 0.9}])
+                        lambda *a, **k: [{"atc_id": "A_1", "grade": 90, "score": 0.9}])
     rematch.rematch_open(verbose=False)
     assert store.get(lid)["status"] == "candidate" and fake.sent == ["me@x.com"]
 
@@ -74,7 +74,7 @@ def test_legacy_report_without_watch_until_uses_created_at(monkeypatch, fake):
     lid = store.add("검정 지갑", {}, [], [], None, None)  # watch_until 없음(기존 신고)
     old = (datetime.now(timezone.utc) - timedelta(days=settings.watch_days_default + 1)).isoformat()
     store._run("UPDATE lost_items SET created_at=? WHERE id=?", (old, lid))
-    monkeypatch.setattr(rematch.graph, "match_stored", lambda *a: [])
+    monkeypatch.setattr(rematch.graph, "match_stored", lambda *a, **k: [])
     rematch.rematch_open(verbose=False)
     assert store.get(lid)["status"] == "expired"
 
