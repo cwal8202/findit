@@ -706,6 +706,21 @@ open 신고마다 매일 검색+LLM grading 비용이 무한 누적 — "1년 �
 - 배포 후 첫 실행은 지난 7일 누락분 ~1만8천 건을 채움(~1.5시간). 9/1~9/21 누락분 백필은 보류(사용자 결정).
 - 테스트: `tests/test_collector.py`(스킵·새 항목만 상세, 빈 날 재매칭, bulk 분할) → 총 56개.
 
+### ⭐ 실시간 진행 표시 — 에이전트 단계 SSE 스트리밍 (2026-09-29)
+
+**동기(사용자)**: 검색 후 ~10초 동안 "추출 → 지역 → 검색 → 판정" 안내문만 보이고 결과가 한 번에 뜸 → 무엇을 하는지 안 보임.
+
+- **서버**: `graph.stream()`이 LangGraph `stream_mode="updates"`로 노드 완료마다 `(단계, 채운 상태)` 방출,
+  사진은 `graph.stream_image()`(Vision 추출 → route → fanout → search → grade → visual). `run_image`는 이 스트림을 소비(로직 한 곳).
+  `POST /lost-items/stream`·`/lost-items/image/stream`이 SSE(`text/event-stream`, `X-Accel-Buffering: no`)로 전달,
+  끝나면 **기존과 동일하게 저장·알림** 후 `result`(MatchResponse). 도중 실패는 `error` 이벤트(내부 정보 숨김, 서버 로그엔 traceback).
+  기존 `POST /lost-items`·`/image`는 그대로 유지.
+- **화면**: 진행 패널 — 단계마다 ✅·소요시간·중간 결과(추출 칩 → 지역 N개 → 검색어 → 후보 수 → 최고 점수).
+  **검색이 끝나면 판정 전 후보 카드를 먼저 표시**(가장 느린 LLM 판정 동안 체감 대기↓), 판정 후 점수·근거가 채워진 최종 화면 + "⏱ 단계별 소요".
+  저장 전 미리보기 카드는 확인/아니에요 버튼 숨김(신고 id 없음).
+- **입력 하드닝**: 신고 문장·사진 메모 500자 상한을 서버에서도 강제(기존엔 화면 `maxlength`만) → 초과 시 422.
+- 테스트: `tests/test_stream.py`(그래프 단계 순서·비신고 조기 종료·사진 visual 단계, API 이벤트 순서·판정 전 스냅샷·저장·알림, 오류 이벤트, 500자) → 총 63개.
+
 ### ⚠ 반복 병목: Gemini 무료 임베딩 쿼터 (개발 루프 차단)
 
 - 이번 세션에서 임베딩 대량/자유질의 시 **5회 이상 429 RESOURCE_EXHAUSTED**. 소량 버스트만 허용, 회복에 10~15분.
@@ -750,7 +765,7 @@ find_it/
 │   ├─ opensearch/                 Dockerfile + mappings/found_items.json
 │   └─ caddy/Caddyfile             프로덕션 리버스프록시(자동 HTTPS)
 ├─ fixtures/responses/             실 API 응답 샘플(진실의 원천, XML 4종)
-├─ tests/                          pytest (핵심 로직 56개, 외부서비스 목킹)
+├─ tests/                          pytest (핵심 로직 63개, 외부서비스 목킹)
 ├─ docs/                           PROGRESS.md(이 문서) · DEPLOY.md · screenshots/
 ├─ .github/workflows/deploy.yml    main push → 서버 SSH 자동배포
 ├─ docker-compose.prod.yml         프로덕션(OpenSearch+Postgres+backend+Caddy)

@@ -105,6 +105,16 @@
           border-top-color:transparent; border-radius:50%; animation:s .7s linear infinite;
           vertical-align:-2px; margin-right:6px; }
   @keyframes s { to { transform:rotate(360deg); } }
+  /* 실시간 진행(추출→지역→검색어→검색→판정) — 단계마다 서버가 SSE로 결과를 흘려보냄 */
+  .prog { border:1px solid var(--line); border-radius:12px; padding:6px 14px; margin-bottom:12px; }
+  .prog-row { display:grid; grid-template-columns:22px auto 1fr; column-gap:8px; align-items:center;
+              padding:8px 0; border-top:1px solid var(--line); }
+  .prog-row:first-child { border-top:0; }
+  .prog-row.wait { color:var(--gray); }
+  .prog-t { justify-self:end; font-size:12px; }
+  .prog-info { grid-column:2 / -1; font-size:13px; min-width:0; }
+  .prog-info:empty { display:none; }
+  .prog .spin { border-color:var(--brand); border-top-color:transparent; margin:0; }
   #lightbox { position:fixed; inset:0; background:rgba(0,0,0,.82); display:flex;
               align-items:center; justify-content:center; z-index:1000; cursor:zoom-out; padding:24px; }
   #lightbox[hidden] { display:none; }
@@ -306,7 +316,12 @@ const I18N = {
     matchResult:"매칭 결과", myReports:"최근 신고 목록", refresh:"새로고침", loading:"불러오는 중…",
     browseTitle:"전체 습득물 둘러보기", browseDesc:"공개데이터로 수집된 습득물을 키워드·지역·날짜로 필터링해 살펴보세요. (AI 판정 없이 즉시 조회)",
     kwPh:"키워드 (예: 지갑, 에어팟, 카드)", allRegions:"전체 지역", foundDate:"습득일", searchBtn:"검색", reset:"초기화",
-    hintPipe:"추출 → 지역 → 검색 → 판정 (10초쯤 걸려요)", hintPhoto:"사진 분석 → 검색 → 판정 → 사진 대조 (15초쯤 걸려요)",
+    step_extract:"추출", step_extractImg:"사진 분석", step_route:"지역", step_fanout:"검색어", step_search:"검색",
+    step_grade:"판정", step_visual:"사진 대조", stepWorking:"진행 중…", total:"전체",
+    regionCount:(n)=>`${n}개 지역까지 넓혀 가점`, noRegion:"장소 정보 없음 — 전국에서 검색",
+    searchCount:(n)=>`후보 ${n}건 — 아래 목록에 AI가 점수·근거를 채워요`,
+    gradeDone:(g)=>`채점 완료 — 최고 ${g}점`, visualDone:(n)=>`사진 있는 후보 ${n}건과 직접 비교`,
+    streamFail:"연결이 끊겼어요. 다시 시도해주세요.",
     visualSim:"사진도 유사",
     needText:"분실물 설명을 입력하세요.", needPhoto:"먼저 사진을 선택하세요.", errPrefix:"오류: ", serverErr:"서버 오류 ",
     invalidInput:"🔎 분실물 설명이 아닌 것 같아요. <b>무슨 물건을, 어디서·언제</b> 잃어버렸는지 적어주세요. (예: 어제 서울 2호선에서 검정 지갑 잃어버렸어요)",
@@ -348,7 +363,12 @@ const I18N = {
     matchResult:"Match results", myReports:"Recent reports", refresh:"Refresh", loading:"Loading…",
     browseTitle:"Browse all found items", browseDesc:"Browse collected found items by keyword, region and date. (Instant — no AI grading.)",
     kwPh:"Keyword (e.g., wallet, AirPods, card)", allRegions:"All regions", foundDate:"Found date", searchBtn:"Search", reset:"Reset",
-    hintPipe:"Extract → region → search → grade (~10s)", hintPhoto:"Reading photo → search → grade → photo compare (~15s)",
+    step_extract:"Extract", step_extractImg:"Read photo", step_route:"Area", step_fanout:"Queries", step_search:"Search",
+    step_grade:"Grade", step_visual:"Photo compare", stepWorking:"Working…", total:"Total",
+    regionCount:(n)=>`Boosting ${n} districts along the route`, noRegion:"No place given — searching nationwide",
+    searchCount:(n)=>`${n} candidates — AI is scoring them below`,
+    gradeDone:(g)=>`Scored — best ${g}`, visualDone:(n)=>`Compared with ${n} candidate photo(s)`,
+    streamFail:"Connection lost. Please try again.",
     visualSim:"Photo match",
     needText:"Please describe your lost item.", needPhoto:"Please choose a photo first.", errPrefix:"Error: ", serverErr:"Server error ",
     invalidInput:"🔎 This doesn't look like a lost-item description. Tell us <b>what you lost, where and when</b>. (e.g., I lost a black wallet on Seoul subway line 2 yesterday)",
@@ -424,7 +444,8 @@ function closeLightbox(){ $("lightbox").hidden = true; $("lightboxImg").src = ""
 document.addEventListener('click', e => { const t = e.target.closest('.thumb'); if (t && t.dataset.full) openLightbox(t.dataset.full); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbox(); });
 
-function matchCard(m, idx) {
+// preview=true: 진행 중(아직 저장 전 — 신고 id 없음) 후보 미리보기 → 확인/아니에요 버튼 숨김
+function matchCard(m, idx, preview = false) {
   const g = m.grade;
   const img = validImg(m.image_url);
   const thumb = img
@@ -432,7 +453,7 @@ function matchCard(m, idx) {
          title="클릭하면 크게 보기"
          style="width:56px;height:56px;object-fit:cover;border-radius:8px;border:1px solid var(--line);flex:0 0 56px;cursor:zoom-in" />`
     : '';
-  const btns = `<div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap">
+  const btns = preview ? '' : `<div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap">
       <button onclick="confirmMatch(${idx})" style="background:var(--green);padding:5px 12px;border-radius:8px;font-size:13px">${t('mine')}</button>
       <button onclick="dismissMatch(${idx})" class="ghost" style="padding:5px 12px;border-radius:8px;font-size:13px">${t('notMine')}</button>
       ${(m.org_name||m.region)?`<a href="${mapUrl(m)}" target="_blank" class="maplink">${t('mapLink')}</a>`:''}
@@ -498,7 +519,7 @@ function claimGuide(m) {
     <p class="muted" style="font-size:13px">${t('claimNote')}</p>`;
 }
 
-function renderResult(d, userPhoto) {
+function renderResult(d, userPhoto, timing = "") {
   if (d.status === "invalid") {  // 분실물 설명이 아님 → 검색 안 함
     _lid = null; _matches = [];
     $("result").innerHTML = `<div class="banner open">${t('invalidInput')}</div>`;
@@ -518,7 +539,7 @@ function renderResult(d, userPhoto) {
          <div class="muted" style="font-size:12px">${t('photoRead')}</div>
        </div>` : "";
   $("result").innerHTML =
-    `${banner}${photoBlock}
+    `${banner}${timing}${photoBlock}
      <div style="margin-bottom:8px"><b>${userPhoto ? t('fromPhoto') : t('extracted')}</b> ${chips(exChips)}</div>
      ${d.region_set?.length ? `${regionExplain(ex)}<div style="margin-bottom:8px"><b>${t('searchRegion')}</b> ${chips(d.region_set, "k")}</div>` : ""}
      <div style="margin-bottom:8px"><b>${t('candQueries')}</b> ${chips(d.queries)}</div>
@@ -590,19 +611,113 @@ async function saveAlerts() {
   }
 }
 
+// ── 실시간 진행: 서버가 단계마다 보내는 SSE(event: 단계명, data: JSON)를 읽어 패널을 갱신 ──
+async function streamPost(url, body, onEvent) {
+  const res = await fetch(url, { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(body) });
+  if (!res.ok || !res.body) throw new Error(t('serverErr') + res.status);
+  const reader = res.body.getReader(), dec = new TextDecoder();
+  let buf = "";
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += dec.decode(value, { stream: true }).replace(/\r\n/g, "\n");
+    let i;
+    while ((i = buf.indexOf("\n\n")) >= 0) {           // 이벤트 경계 = 빈 줄
+      const block = buf.slice(0, i); buf = buf.slice(i + 2);
+      let ev = "message", data = "";
+      for (const line of block.split("\n")) {
+        if (line.startsWith("event:")) ev = line.slice(6).trim();
+        else if (line.startsWith("data:")) data += line.slice(5).trim();
+      }
+      if (data) onEvent(ev, JSON.parse(data));
+    }
+  }
+}
+
+let _prog = null;
+const stepLabel = (s) => t(s === "extract" && _prog?.isImg ? "step_extractImg" : "step_" + s);
+
+function progStart(isImg) {
+  const steps = ["extract", "route", "fanout", "search", "grade"].concat(isImg ? ["visual"] : []);
+  const now = performance.now();
+  _prog = { isImg, steps, done: {}, info: {}, times: {}, cands: [], t0: now, last: now };
+  renderProgress();
+  $("resultCard").hidden = false;
+  $("resultCard").scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+function stepSummary(ev, d) {
+  if (ev === "extract") {
+    const ex = d.extracted || {};
+    return chips([ex.item, ex.brand, ex.color, ex.category && ("분류:" + ex.category), ex.place_context, ex.lost_date, ex.features]);
+  }
+  if (ev === "route") {
+    const r = d.region_set || [];
+    return r.length ? `${esc(t('regionCount', r.length))}${chips(r.slice(0, 10).concat(r.length > 10 ? ["…"] : []), "k")}`
+                    : `<span class="muted">${t('noRegion')}</span>`;
+  }
+  if (ev === "fanout") return chips(d.queries || []);
+  if (ev === "search") return esc(t('searchCount', (d.candidates || []).length));
+  if (ev === "grade") return esc(t('gradeDone', (d.matches || [])[0]?.grade ?? "-"));
+  if (ev === "visual") return esc(t('visualDone', (d.matches || []).filter(m => m.visual_score != null).length));
+  return "";
+}
+
+function progStep(ev, d) {
+  if (!_prog || !_prog.steps.includes(ev)) return;
+  const now = performance.now();
+  _prog.times[ev] = (now - _prog.last) / 1000; _prog.last = now;
+  _prog.done[ev] = true;
+  _prog.info[ev] = stepSummary(ev, d);
+  if (ev === "search") _prog.cands = d.candidates || [];          // 판정 전 후보 먼저 표시
+  if (ev === "grade" || ev === "visual") _prog.cands = d.matches || [];
+  renderProgress();
+}
+
+function renderProgress() {
+  const p = _prog, cur = p.steps.find(s => !p.done[s]);
+  const rows = p.steps.map(s => {
+    const st = p.done[s] ? "done" : s === cur ? "run" : "wait";
+    const icon = st === "done" ? "✅" : st === "run" ? '<span class="spin"></span>' : "○";
+    const info = p.done[s] ? p.info[s] : st === "run" ? `<span class="muted">${t('stepWorking')}</span>` : "";
+    return `<div class="prog-row ${st}"><span>${icon}</span><b>${stepLabel(s)}</b>
+      <span class="muted prog-t">${p.times[s] != null ? p.times[s].toFixed(1) + "s" : ""}</span>
+      <div class="prog-info">${info}</div></div>`;
+  }).join("");
+  const cards = p.cands.slice(0, 6).map((m, i) => matchCard(m, i, true)).join("");
+  $("result").innerHTML = `<div class="prog">${rows}</div>${cards}`;
+}
+
+function progTiming() {
+  const p = _prog; if (!p) return "";
+  const parts = p.steps.filter(s => p.times[s] != null).map(s => `${stepLabel(s)} ${p.times[s].toFixed(1)}s`);
+  const total = ((performance.now() - p.t0) / 1000).toFixed(1);
+  return `<div class="muted" style="font-size:12px; margin:-4px 0 10px">⏱ ${esc(parts.join(" · "))} · ${t('total')} ${total}s</div>`;
+}
+
+// 단계 스트림 실행 → 진행 패널 갱신 → 최종 결과(result 이벤트)로 기존 결과 화면 렌더
+async function runMatchStream(url, body, userPhoto) {
+  progStart(!!userPhoto);
+  let final = null;
+  await streamPost(url, body, (ev, d) => {
+    if (ev === "result") final = d;
+    else if (ev === "error") throw new Error(d.detail);
+    else progStep(ev, d);
+  });
+  if (!final) throw new Error(t('streamFail'));
+  renderResult(final, userPhoto, final.status === "invalid" ? "" : progTiming());
+}
+
 async function registerLost() {
   const text = $("text").value.trim();
   if (!text) { $("hint").textContent = t('needText'); return; }
   const btn = $("go"); btn.disabled = true;
   const orig = btn.textContent; btn.innerHTML = '<span class="spin"></span>' + (LANG === 'en' ? 'Searching…' : '찾는 중…');
-  $("hint").textContent = t('hintPipe');
+  $("hint").textContent = "";
   try {
     const body = { text, lost_date: $("lostDate").value || null, email: $("email").value.trim() || null,
                    notify_weak: $("notifyWeak").checked, lang: LANG };
-    const res = await fetch("/lost-items", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(body) });
-    if (!res.ok) throw new Error(t('serverErr') + res.status);
-    renderResult(await res.json());
-    $("hint").textContent = "";
+    await runMatchStream("/lost-items/stream", body);
   } catch (e) {
     $("hint").textContent = t('errPrefix') + e.message;
   } finally {
@@ -630,15 +745,12 @@ async function registerImage() {
   if (!_photoB64) { $("hintImg").textContent = t('needPhoto'); return; }
   const btn = $("goImg"); btn.disabled = true;
   const orig = btn.textContent; btn.innerHTML = '<span class="spin"></span>' + (LANG === 'en' ? 'Searching…' : '찾는 중…');
-  $("hintImg").textContent = t('hintPhoto');
+  $("hintImg").textContent = "";
   try {
     const body = { image_b64: _photoB64, mime: _photoMime,
                    note: $("text").value.trim(), lost_date: $("lostDate").value || null,
                    email: $("email").value.trim() || null, notify_weak: $("notifyWeak").checked, lang: LANG };
-    const res = await fetch("/lost-items/image", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(body) });
-    if (!res.ok) throw new Error(t('serverErr') + res.status);
-    renderResult(await res.json(), _photoDataUrl);
-    $("hintImg").textContent = "";
+    await runMatchStream("/lost-items/image/stream", body, _photoDataUrl);
   } catch (e) {
     $("hintImg").textContent = t('errPrefix') + e.message;
   } finally {

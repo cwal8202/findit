@@ -108,6 +108,19 @@ def run(text: str, lost_date: str | None = None, lang: str = "ko") -> dict:
     return GRAPH.invoke({"text": text, "lost_date": lost_date or "", "lang": lang})
 
 
+def stream(text: str, lost_date: str | None = None, lang: str = "ko"):
+    """단계별 진행 스트림 — 노드가 끝날 때마다 (단계명, 그 단계가 채운 상태)를, 마지막에 ('done', 최종 상태).
+
+    화면이 '추출 → 지역 → 검색어 → 검색 → 판정'을 실시간으로 그리도록. 분실물 신고가 아니면 extract 뒤 바로 done.
+    """
+    state: AgentState = {"text": text, "lost_date": lost_date or "", "lang": lang}
+    for upd in GRAPH.stream(state, stream_mode="updates"):
+        for node, part in upd.items():
+            state.update(part or {})
+            yield node, part or {}
+    yield "done", state
+
+
 def _synth_text(ex: dict, note: str = "") -> str:
     """추출 필드 → 사람이 읽을 한 줄(설명/grade/저장/표시용). 사진 신고는 문장이 없으므로 합성."""
     core = " ".join(x for x in (ex.get("color", ""), ex.get("brand", ""), ex.get("item", "")) if x)
@@ -155,21 +168,32 @@ def _visual_compare(user_b64: str, user_mime: str, matches: list[dict],
             m["visual_reason"] = res.get("reason")
 
 
-def run_image(image_b64: str, mime: str = "image/jpeg",
-              note: str = "", lost_date: str | None = None, lang: str = "ko") -> dict:
-    """사진(+선택 메모) 신고 → Vision 추출 → 텍스트 동일 파이프라인 → (사진 있는 후보) 사진 대조.
+def stream_image(image_b64: str, mime: str = "image/jpeg",
+                 note: str = "", lost_date: str | None = None, lang: str = "ko"):
+    """사진 신고 단계별 스트림 — extract(Vision) → route → fanout → search → grade → visual → ('done', 최종 상태).
 
     사진에는 문장이 없으므로 추출 필드로 검색용 text를 합성해 grade/저장/표시에 재사용.
     VISUAL 레인: 텍스트로 추린 후보 중 사진 있는 상위 몇 개를 사용자 사진과 직접 비교(가점 아님, 주석·표시).
     """
     ex = extract_mod.extract_image(image_b64, mime, note=note, lost_date=lost_date)
-    text = _synth_text(ex, note)
-    state: AgentState = {"text": text, "extracted": ex, "lang": lang}
-    state.update(n_route(state))
-    state.update(n_fanout(state))
-    state.update(n_search(state))
-    state.update(n_grade(state))
+    state: AgentState = {"text": _synth_text(ex, note), "extracted": ex, "lang": lang}
+    yield "extract", {"extracted": ex, "text": state["text"]}
+    for name, node in (("route", n_route), ("fanout", n_fanout), ("search", n_search), ("grade", n_grade)):
+        part = node(state)
+        state.update(part)
+        yield name, part
     _visual_compare(image_b64, mime, state.get("matches", []), lang)
+    yield "visual", {"matches": state.get("matches", [])}
+    yield "done", state
+
+
+def run_image(image_b64: str, mime: str = "image/jpeg",
+              note: str = "", lost_date: str | None = None, lang: str = "ko") -> dict:
+    """사진(+선택 메모) 신고 → 최종 상태(단계 스트림을 끝까지 소비)."""
+    state: dict = {}
+    for step, part in stream_image(image_b64, mime, note=note, lost_date=lost_date, lang=lang):
+        if step == "done":
+            state = part
     return state
 
 

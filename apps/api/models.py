@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+MAX_TEXT = 500  # 신고 문장·메모 길이 상한(화면 maxlength와 동일) — 서버에서도 강제(토큰 절약·남용 방지)
 
 
 class FoundItem(BaseModel):
@@ -38,7 +40,7 @@ class SearchResponse(BaseModel):
 
 
 class LostItemRequest(BaseModel):
-    text: str                       # 자연어 분실 신고
+    text: str = Field(max_length=MAX_TEXT)  # 자연어 분실 신고
     lost_date: str | None = None    # 명시하면 우선(없으면 LLM이 문장에서 환산)
     email: str | None = None        # 매칭 시 알림 받을 이메일(신고자별)
     notify_weak: bool = False       # 임계 미만 '약한 후보'도 참고 알림 받기(옵트인, 이메일 있을 때만 유효)
@@ -48,7 +50,7 @@ class LostItemRequest(BaseModel):
 class LostItemImageRequest(BaseModel):
     image_b64: str                  # 사진(base64, 데이터URL 접두사 제외)
     mime: str = "image/jpeg"        # image/jpeg | image/png ...
-    note: str = ""                  # 선택 메모(장소·날짜 등 사진이 모르는 정보)
+    note: str = Field("", max_length=MAX_TEXT)  # 선택 메모(장소·날짜 등 사진이 모르는 정보)
     lost_date: str | None = None
     email: str | None = None
     notify_weak: bool = False

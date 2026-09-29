@@ -53,6 +53,7 @@
               웹 화면 ← 알림(Notifier) ← 지속 재매칭 ← 분실물 DB(SQLite)
 ```
 - **매칭 에이전트**: `POST /lost-items`(자연어 한 줄 → 매칭) · `POST /lost-items/image`(📷 사진 → Vision 특징추출 → 매칭)
+  · 웹은 `…/stream`(SSE)으로 **추출 → 지역 → 검색어 → 검색 → 판정을 실시간 표시**(판정 전 후보를 먼저 보여줌)
 - **전체 둘러보기**: `GET /found-items/browse` — 키워드·지역·날짜 필터 + 최신순 목록(임베딩·LLM 없이 즉시)
 - **웹**: 랜딩(소개) + 탭 `[🔍 AI로 찾기 | 📋 전체 둘러보기]` — 등록/사진 → 매칭 결과(근거·썸네일·지도) → HITL 확인 → 최근 신고 목록
 - **다국어**: 어떤 언어로 검색해도 결과(서버가 검색어 번역) + 화면·수령안내 다국어(Google 번역 위젯)
@@ -69,7 +70,7 @@
 → 의미 임베딩이 주력 랭커(한글↔영문·번역·오타 커버). **지역 가점**은 밀집 군집(검정지갑 193건 등)에서
 묻힌 정답을 MRR 0.084→0.857로 끌어올림(덧셈 소프트 w≈0.05, eval 검증). dep→구/시 gazetteer+지오코딩 커버 **95%**.
 
-**✅ 테스트**: `uv run pytest` — 핵심 로직 56개(fan-out·지역가점·store 생애주기·정규화·notifier·약한 후보 알림·알림 기간·검색 부스트·API), 외부서비스 불필요(목킹).
+**✅ 테스트**: `uv run pytest` — 핵심 로직 63개(fan-out·지역가점·store 생애주기·정규화·notifier·약한 후보 알림·알림 기간·수집기·실시간 스트림·검색 부스트·API), 외부서비스 불필요(목킹).
 
 **⏳ 남은 것**: 카카오 알림톡(현재 이메일/콘솔 알림) · 브라우저 확장 · 인증(user_id) · React/Vercel 프론트 분리 · 이미지 임베딩(CLIP) 검색.
 
@@ -95,7 +96,7 @@ eval/        골든셋 + 성능 실험 (BM25/임베딩/하이브리드/스윕, O
 infra/       docker-compose + OpenSearch(nori) Dockerfile + 인덱스 매핑
 fixtures/    공공 API 실응답 샘플 (진실의 원천)
 docs/        PROGRESS.md (설계·실험 기록)
-apps/api/       FastAPI 엔드포인트 (/found-items/search·/browse, /lost-items[+/image], /confirm·/dismiss·/alerts, /health, GET /)
+apps/api/       FastAPI 엔드포인트 (/found-items/search·/browse, /lost-items[+/image, /stream], /confirm·/dismiss·/alerts, /health, GET /)
 apps/agent/     매칭 에이전트 (LangGraph: extract→route→fanout→search→grade) + rematch(지속 재매칭)
 apps/collector/ 수집기 (data.go.kr 습득물 → 상세 enrich → 임베딩 → 색인, --rematch)
 apps/store.py   분실물 저장소 (PostgreSQL/SQLite 이중 백엔드, DATABASE_URL로 선택)

@@ -6,10 +6,12 @@
 
 from __future__ import annotations
 
+import json
+import traceback
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Query
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from apps import store
@@ -108,6 +110,66 @@ def _persist_and_respond(text: str, result: dict, email: str,
         count=len(raw_matches),
         matches=[FoundItem(**m) for m in raw_matches],
     )
+
+
+_SSE_HEADERS = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}  # 프록시 버퍼링 없이 즉시 전달
+
+
+def _sse(event: str, data) -> str:
+    return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False, default=str)}\n\n"
+
+
+def _step_payload(part: dict) -> dict:
+    """단계 결과 → 화면용 JSON. 후보·매칭은 FoundItem 스키마로 정리(내부 필드 제거)."""
+    return {k: ([FoundItem(**m).model_dump() for m in v or []] if k in ("candidates", "matches") else v)
+            for k, v in part.items()}
+
+
+def _stream_match(steps, email: str, notify_weak: bool, text: str | None = None):
+    """단계 스트림 → SSE 이벤트. 끝나면 기존과 동일하게 저장·알림 후 `result`(MatchResponse).
+
+    이벤트: extract · route · fanout · search(판정 전 후보) · grade · [visual] · result | error
+    """
+    try:
+        final = None
+        for step, part in steps:
+            if step == "done":
+                final = part
+                break
+            yield _sse(step, _step_payload(part))
+        if final is None:
+            return
+        ex = final.get("extracted", {})
+        query = text or final.get("text", "사진 신고")
+        if not ex.get("is_lost_report", True):  # 분실물 신고 아님 → 저장·검색·알림 없이 종료
+            resp = MatchResponse(id="", status="invalid", query=query, extracted=ex, matches=[])
+        else:
+            resp = _persist_and_respond(query, final, email, notify_weak)
+        yield _sse("result", resp.model_dump())
+    except Exception:  # noqa: BLE001 — 스트림 도중 실패는 HTTP 상태로 못 알리므로 이벤트로
+        traceback.print_exc()
+        yield _sse("error", {"detail": "처리 중 오류가 발생했어요. 잠시 후 다시 시도해주세요."})
+
+
+@app.post("/lost-items/stream")
+def register_lost_item_stream(req: LostItemRequest) -> StreamingResponse:
+    """`POST /lost-items`의 실시간 버전 — 추출·지역·검색·판정을 단계마다 SSE로 흘려보냄."""
+    from apps.agent import graph as agent_graph
+
+    steps = agent_graph.stream(req.text, req.lost_date, req.lang or "ko")
+    return StreamingResponse(_stream_match(steps, req.email or "", req.notify_weak, text=req.text),
+                             media_type="text/event-stream", headers=_SSE_HEADERS)
+
+
+@app.post("/lost-items/image/stream")
+def register_lost_item_image_stream(req: LostItemImageRequest) -> StreamingResponse:
+    """`POST /lost-items/image`의 실시간 버전 — 사진 분석·지역·검색·판정·사진 대조를 단계마다 SSE로."""
+    from apps.agent import graph as agent_graph
+
+    steps = agent_graph.stream_image(req.image_b64, req.mime, note=req.note,
+                                     lost_date=req.lost_date, lang=req.lang or "ko")
+    return StreamingResponse(_stream_match(steps, req.email or "", req.notify_weak),
+                             media_type="text/event-stream", headers=_SSE_HEADERS)
 
 
 @app.get("/found-items/browse")
