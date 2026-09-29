@@ -47,6 +47,7 @@
   .status { font-size:12px; padding:2px 9px; border-radius:999px; font-weight:700; }
   .status.matched, .status.confirmed { background:#dcfce7; color:#166534; }
   .status.candidate { background:#dbeafe; color:#1e40af; }
+  .status.expired { background:#f3f4f6; color:#6b7280; }
   .status.open { background:#fef9c3; color:#854d0e; }
   .mine-item { border-top:1px solid var(--line); padding:12px 0; }
   .mine-item:first-child { border-top:0; }
@@ -180,6 +181,10 @@
     <div style="text-align:right; font-size:12px; color:var(--sub); margin-top:2px"><span id="textCount">0</span>/500</div>
     <input type="email" id="email" data-i18n-ph="emailPh" placeholder="알림 받을 이메일 (선택) — 나중에 매칭되면 여기로 보내드려요"
            style="width:100%; margin-top:10px; border:1px solid var(--line); border-radius:10px; padding:11px; font:inherit;" />
+    <label style="display:flex; align-items:center; gap:6px; margin-top:8px; font-size:13px; color:var(--sub); cursor:pointer">
+      <input type="checkbox" id="notifyWeak" />
+      <span data-i18n="notifyWeak">정확도가 낮은 <b>비슷한 후보</b>도 참고로 알림 받기 (이메일 입력 시)</span>
+    </label>
     <div class="row">
       <label><span data-i18n="lostDate">분실일(선택)</span> <input type="date" id="lostDate" /></label>
       <button id="go" onclick="registerLost()" data-i18n="find">찾기</button>
@@ -293,6 +298,7 @@ const I18N = {
     tabFind:"🔍 AI로 찾기", tabBrowse:"📋 전체 둘러보기", register:"분실물 찾기",
     textPh:"예: 어제 2호선 지하철에서 검정색 닥스 지갑을 잃어버렸어요. 안에 신분증이랑 카드가 있었어요.",
     emailPh:"알림 받을 이메일 (선택) — 나중에 매칭되면 여기로 보내드려요",
+    notifyWeak:"정확도가 낮은 <b>비슷한 후보</b>도 참고로 알림 받기 (이메일 입력 시)",
     lostDate:"분실일(선택)", find:"찾기", orPhoto:"— 또는 사진으로 찾기 —",
     pickPhoto:"📷 사진 선택", searchPhoto:"사진으로 찾기",
     photoNote1:"잃어버린 물건이 찍힌(또는 비슷한) 사진이면 돼요. 사진엔 없는 <b>장소·날짜</b>는 위 설명/분실일에 적으면 함께 반영돼요.",
@@ -315,20 +321,26 @@ const I18N = {
     claimHow:"수령 방법", claimStep1:"보관기관에 전화로 문의", claimStep2:"여권·신분증 지참해 직접 방문(본인 확인)",
     claimStep3:"지도로 위치 확인", claimTimeline:"습득물은 보통 일정 기간(최대 6개월) 보관 후 처리될 수 있어요 — 되도록 빨리 문의하세요.",
     claimNote:"※ 신분 확인 등 기관 절차에 따라 본인이 수령하세요. FindIt은 안내만 제공합니다.",
-    emailOfferText:"📧 지금 못 찾아도 괜찮아요. <b>이메일을 남기면</b> 이 결과를 보내드리고, 이후 새 습득물이 들어와 매칭되면 자동으로 알려드려요.",
-    emailPh2:"이메일 주소", send:"보내기", emailInvalid:"유효한 이메일을 입력하세요.", emailSending:"보내는 중…",
-    emailSent:(x)=>`✅ ${x} 로 보냈어요. 이후 매칭되면 이 주소로 알려드릴게요.`, emailFail:"발송 실패 ",
+    alertTitle:"🔔 알림 설정",
+    alertDesc:"지금 못 찾아도 괜찮아요. 새 습득물이 들어올 때마다 매일 다시 찾아보고, <b>유력 후보가 나오면 이메일</b>로 알려드려요. 이메일을 새로 남기면 지금 결과도 보내드려요.",
+    alertPeriod:"알림 기간", days:(n)=>`${n}일`, save:"저장", saving:"저장 중…", alertSaved:"저장했어요.",
+    alertUntil:(d, e)=> e ? `📅 <b>${d}</b>까지 매일 비교해 <b>${e}</b>로 알려드려요.`
+                          : `📅 <b>${d}</b>까지 매일 다시 찾아요. <b>이메일을 남기면</b> 알림을 보내드려요.`,
+    resultsSent:(x)=>`지금 결과도 ${x}로 보냈어요.`,
+    emailPh2:"이메일 주소", emailInvalid:"유효한 이메일을 입력하세요.",
     browseXlate:"", perPage:"개씩", browseCount:(n)=>`총 ${n.toLocaleString()}건`, noItems:"조건에 맞는 습득물이 없어요.", noName:"(이름 없음)",
     prev:"‹ 이전", next:"다음 ›", loadFail:"불러오지 못했어요.", mineEmpty:"아직 등록한 신고가 없어요.",
     mineLoadFail:"목록을 불러오지 못했어요.", bestMatch:"최고 매칭",
     showMore:(n)=>`더 보기 (전체 ${n}건)`, collapse:"접기",
-    stConfirmed:"확인됨", stCandidate:"유력 후보", stOpen:"찾는중",
+    stConfirmed:"확인됨", stCandidate:"유력 후보", stOpen:"찾는중", stExpired:"기간 만료",
+    watchTo:(d)=>`알림 ~${d}`,
   },
   en: {
     subtitle:"Describe your lost item in any language — we search Korea's public found-item data.",
     tabFind:"🔍 AI Search", tabBrowse:"📋 Browse all", register:"Find a lost item",
     textPh:"e.g., I lost a black wallet near Gangnam Station yesterday. — A station, area or landmark is enough; you don't need the subway line number or direction.",
     emailPh:"Email for alerts (optional) — we'll notify you when it matches",
+    notifyWeak:"Also alert me about <b>weaker, similar candidates</b> (for reference; needs email)",
     lostDate:"Date lost (optional)", find:"Search", orPhoto:"— or search by photo —",
     pickPhoto:"📷 Choose photo", searchPhoto:"Search by photo",
     photoNote1:"A photo of your item (or a similar one) works. A photo can't show <b>place/date</b>, so add them above.",
@@ -351,15 +363,20 @@ const I18N = {
     claimHow:"How to retrieve", claimStep1:"Call the holding office", claimStep2:"Visit in person with your passport/ID (identity check)",
     claimStep3:"Check the location on the map", claimTimeline:"Found items are usually held for a limited time (up to ~6 months) before disposal — contact them soon.",
     claimNote:"※ Retrieval follows the office's own identity-check procedure. FindIt only provides guidance.",
-    emailOfferText:"📧 Not found yet? <b>Leave your email</b> — we'll send you these results and alert you automatically when a new matching item arrives.",
-    emailPh2:"Email address", send:"Send", emailInvalid:"Enter a valid email.", emailSending:"Sending…",
-    emailSent:(x)=>`✅ Sent to ${x}. We'll alert this address on future matches.`, emailFail:"Send failed ",
+    alertTitle:"🔔 Alert settings",
+    alertDesc:"Not found yet? We re-check daily as new items arrive and <b>email you when a strong candidate appears</b>. A newly entered email also gets these results now.",
+    alertPeriod:"Alert for", days:(n)=>`${n} days`, save:"Save", saving:"Saving…", alertSaved:"Saved.",
+    alertUntil:(d, e)=> e ? `📅 We'll check daily until <b>${d}</b> and alert <b>${e}</b>.`
+                          : `📅 We'll re-check daily until <b>${d}</b>. <b>Leave an email</b> to get alerts.`,
+    resultsSent:(x)=>`Current results sent to ${x}.`,
+    emailPh2:"Email address", emailInvalid:"Enter a valid email.",
     browseXlate:"💡 Item names &amp; descriptions here are in Korean. To read them in your language, use your browser's <b>“Translate page”</b> (right-click → Translate, or the translate icon in the address bar).",
     perPage:"per page", browseCount:(n)=>`${n.toLocaleString()} total`, noItems:"No found items match.", noName:"(no name)",
     prev:"‹ Prev", next:"Next ›", loadFail:"Couldn't load.", mineEmpty:"No reports yet.",
     mineLoadFail:"Couldn't load the list.", bestMatch:"Best match",
     showMore:(n)=>`Show all (${n})`, collapse:"Collapse",
-    stConfirmed:"Confirmed", stCandidate:"Strong match", stOpen:"Searching",
+    stConfirmed:"Confirmed", stCandidate:"Strong match", stOpen:"Searching", stExpired:"Expired",
+    watchTo:(d)=>`alerts until ${d}`,
   },
 };
 // UI 기본 언어는 한국어 고정. 다국어 표시는 Google 번역 위젯(#langPicker)이 담당.
@@ -507,7 +524,7 @@ function renderResult(d, userPhoto) {
      <div style="margin-bottom:8px"><b>${t('candQueries')}</b> ${chips(d.queries)}</div>
      <div style="margin-top:12px"><b>${t('candCount', d.count)}</b></div>
      ${(d.matches||[]).slice(0,6).map((m,i)=>matchCard(m,i)).join("") || `<span class="muted">${t('noCand')}</span>`}
-     ${emailOffer()}`;
+     ${alertPanel(d)}`;
   $("resultCard").hidden = false;
   $("resultCard").scrollIntoView({ behavior:"smooth", block:"nearest" });
   loadMine();
@@ -529,31 +546,47 @@ function regionExplain(ex) {
   return `<div class="note" style="background:#eff6ff; border-color:#bfdbfe; color:#1e40af; margin-bottom:8px">${msg}</div>`;
 }
 
-function emailOffer() {
-  if ($("email").value.trim()) return "";   // 이미 이메일 입력됨 → 자동 알림 대상
-  return `<div id="emailOffer" style="margin-top:14px; border-top:1px solid var(--line); padding-top:14px">
-      <div style="font-size:13px; margin-bottom:8px">${t('emailOfferText')}</div>
+const WATCH_DAYS = [7, 30, 90, 180];  // 알림 기간 선택지(180 = 습득물 최대 보관 ~6개월)
+
+// 결과창 '알림 설정' — 등록 때 이메일을 넣었든 안 넣었든 항상 표시. 이메일·약한 후보·기간을 여기서 변경.
+function alertPanel(d) {
+  const email = $("email").value.trim();
+  const opts = WATCH_DAYS.map(n => `<option value="${n}" ${n === 30 ? "selected" : ""}>${t('days', n)}</option>`).join("");
+  return `<div id="alertPanel" style="margin-top:14px; border-top:1px solid var(--line); padding-top:14px">
+      <div style="font-weight:700; margin-bottom:4px">${t('alertTitle')}</div>
+      <div class="muted" style="font-size:13px; margin-bottom:8px">${t('alertDesc')}</div>
       <div class="row" style="margin-top:0">
-        <input id="emailResult" type="email" placeholder="${t('emailPh2')}"
+        <input id="alertEmail" type="email" value="${esc(email)}" placeholder="${t('emailPh2')}"
                style="flex:1; min-width:160px; border:1px solid var(--line); border-radius:10px; padding:10px; font:inherit" />
-        <button onclick="sendResultsEmail()">${t('send')}</button>
-        <span id="emailMsg" class="muted" style="font-size:13px"></span>
+        <label style="font-size:13px">${t('alertPeriod')} <select id="alertDays">${opts}</select></label>
+        <button onclick="saveAlerts()">${t('save')}</button>
       </div>
+      <label style="display:flex; align-items:center; gap:6px; margin-top:8px; font-size:13px; color:var(--sub); cursor:pointer">
+        <input type="checkbox" id="alertWeak" ${$("notifyWeak").checked ? "checked" : ""} />
+        <span>${t('notifyWeak')}</span>
+      </label>
+      <div id="alertMsg" style="font-size:13px; margin-top:8px">${d.watch_until ? t('alertUntil', d.watch_until.slice(0, 10), esc(email)) : ""}</div>
     </div>`;
 }
 
-async function sendResultsEmail() {
-  const email = ($("emailResult").value || "").trim();
-  if (!email.includes("@")) { $("emailMsg").textContent = t('emailInvalid'); return; }
-  $("emailMsg").textContent = t('emailSending');
+async function saveAlerts() {
+  const email = ($("alertEmail").value || "").trim();
+  if (email && !email.includes("@")) { $("alertMsg").textContent = t('emailInvalid'); return; }
+  $("alertMsg").textContent = t('saving');
   try {
-    const res = await fetch(`/lost-items/${_lid}/email`, {
+    const res = await fetch(`/lost-items/${_lid}/alerts`, {
       method:"POST", headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({ email, matches: _matches }) });
-    if (!res.ok) throw new Error(t('emailFail') + res.status);
-    $("emailOffer").innerHTML = `<div class="banner matched" style="margin:0">${t('emailSent', esc(email))}</div>`;
+      body: JSON.stringify({ email, notify_weak: $("alertWeak").checked,
+                             watch_days: +$("alertDays").value, matches: _matches }) });
+    if (!res.ok) throw new Error(t('serverErr') + res.status);
+    const r = await res.json();
+    $("email").value = r.email; $("notifyWeak").checked = r.notify_weak;  // 등록 폼과 동기화
+    $("alertWeak").checked = r.notify_weak;  // 이메일 없으면 서버가 옵트인 무효화 → 화면도 맞춤
+    $("alertMsg").innerHTML = `✅ ${t('alertSaved')} ${t('alertUntil', r.watch_until.slice(0, 10), esc(r.email))}`
+      + (r.sent_to ? ` ${t('resultsSent', esc(r.sent_to))}` : "");
+    loadMine();
   } catch (e) {
-    $("emailMsg").textContent = t('errPrefix') + e.message;
+    $("alertMsg").textContent = t('errPrefix') + e.message;
   }
 }
 
@@ -564,7 +597,8 @@ async function registerLost() {
   const orig = btn.textContent; btn.innerHTML = '<span class="spin"></span>' + (LANG === 'en' ? 'Searching…' : '찾는 중…');
   $("hint").textContent = t('hintPipe');
   try {
-    const body = { text, lost_date: $("lostDate").value || null, email: $("email").value.trim() || null, lang: LANG };
+    const body = { text, lost_date: $("lostDate").value || null, email: $("email").value.trim() || null,
+                   notify_weak: $("notifyWeak").checked, lang: LANG };
     const res = await fetch("/lost-items", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(body) });
     if (!res.ok) throw new Error(t('serverErr') + res.status);
     renderResult(await res.json());
@@ -600,7 +634,7 @@ async function registerImage() {
   try {
     const body = { image_b64: _photoB64, mime: _photoMime,
                    note: $("text").value.trim(), lost_date: $("lostDate").value || null,
-                   email: $("email").value.trim() || null, lang: LANG };
+                   email: $("email").value.trim() || null, notify_weak: $("notifyWeak").checked, lang: LANG };
     const res = await fetch("/lost-items/image", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(body) });
     if (!res.ok) throw new Error(t('serverErr') + res.status);
     renderResult(await res.json(), _photoDataUrl);
@@ -629,12 +663,14 @@ function mineItem(it) {
   const bm = it.best_match;
   const when = (it.created_at || "").slice(0, 10);
   const stLabel = it.status === "confirmed" ? t("stConfirmed")
-    : (it.status === "candidate" || it.status === "matched") ? t("stCandidate") : t("stOpen");
+    : (it.status === "candidate" || it.status === "matched") ? t("stCandidate")
+    : it.status === "expired" ? t("stExpired") : t("stOpen");
+  const watch = it.status === "open" && it.watch_until ? " · " + t("watchTo", it.watch_until.slice(0, 10)) : "";
   return `<div class="mine-item">
     <div style="display:flex; justify-content:space-between; gap:10px">
       <div style="min-width:0">
         <div>${esc(it.text)}</div>
-        <div class="m-meta">${when}${bm ? " · " + t("bestMatch") + ": " + esc(bm.name) + " (grade " + (it.best_grade ?? "-") + ")" : ""}</div>
+        <div class="m-meta">${when}${bm ? " · " + t("bestMatch") + ": " + esc(bm.name) + " (grade " + (it.best_grade ?? "-") + ")" : ""}${watch}</div>
       </div>
       <span class="status ${it.status === "matched" ? "candidate" : it.status}">${stLabel}</span>
     </div>

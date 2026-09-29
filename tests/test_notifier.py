@@ -1,6 +1,14 @@
 """알림 헬퍼 — 특이사항 정리, 유효 이미지 필터(경찰청 no_img 플레이스홀더 제외)."""
 
-from apps.notifier import _clean_desc, _valid_img
+from apps.notifier import _clean_desc, _html_body, _text_body, _valid_img
+
+
+def test_weak_wording_differs_from_strong():
+    lost, ms = {"text": "검정 지갑"}, [{"name": "지갑", "grade": 60}]
+    assert "유력 후보" in _text_body(lost, ms)
+    weak = _text_body(lost, ms, weak=True)
+    assert "참고" in weak and "유력 후보" not in weak   # 약한 후보를 '유력'으로 과장하지 않음
+    assert "참고" in _html_body(lost, ms, weak=True)
 
 
 def test_clean_desc_strips_label_and_whitespace():

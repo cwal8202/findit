@@ -55,5 +55,25 @@ def test_set_email():
     assert store.get(lid)["email"] == "me@example.com"
 
 
+def test_notify_weak_default_and_update_alerts():
+    lid = store.add("x", {}, [], [], None, None)
+    row = store.get(lid)
+    assert row["notify_weak"] is False and row["watch_until"] is None  # 기본은 옵트아웃
+    store.update_alerts(lid, "me@example.com", True, "2026-12-31T00:00:00+00:00")
+    row = store.get(lid)
+    assert (row["email"], row["notify_weak"], row["watch_until"]) == \
+        ("me@example.com", True, "2026-12-31T00:00:00+00:00")
+    assert row["status"] == "open"                      # status 미지정 → 그대로
+    store.update_alerts(lid, "", False, "2026-12-31T00:00:00+00:00", status="expired")
+    assert store.get(lid)["status"] == "expired"
+
+
+def test_mark_weak_notified_accumulates_and_dedups():
+    lid = store.add("x", {}, [], [], None, None)
+    store.mark_weak_notified(lid, "A_1")
+    assert store.mark_weak_notified(lid, "A_1") == ["A_1"]
+    assert store.mark_weak_notified(lid, "B_1") == ["A_1", "B_1"]
+
+
 def test_get_unknown_returns_none():
     assert store.get("nope") is None

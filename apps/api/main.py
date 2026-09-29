@@ -17,9 +17,9 @@ from apps import store
 from . import search as search_mod
 from .config import settings
 from .models import (
+    AlertSettingsRequest,
     ConfirmRequest,
     DismissRequest,
-    EmailResultsRequest,
     FoundItem,
     LostItemImageRequest,
     LostItemRequest,
@@ -72,25 +72,36 @@ def search_found_items(
     )
 
 
-def _persist_and_respond(text: str, result: dict, email: str) -> MatchResponse:
-    """매칭 결과 저장 + (유력 후보면) 알림 + 응답 구성. 텍스트/사진 신고 공용."""
+def _persist_and_respond(text: str, result: dict, email: str,
+                         notify_weak: bool = False) -> MatchResponse:
+    """매칭 결과 저장 + (유력/옵트인 약한 후보면) 알림 + 응답 구성. 텍스트/사진 신고 공용."""
+    from apps.agent.rematch import alert_level, watch_until_after
+
     raw_matches = result.get("matches", [])
     top = raw_matches[0] if raw_matches else None
     best_grade = top.get("grade") if top else None
-    # grade≥임계면 '유력 후보(candidate)' — 확정 아님, 사용자 확인 필요(HITL)
-    status = "candidate" if (best_grade or 0) >= settings.rematch_grade_threshold else "open"
+    # 약한 후보 옵트인은 신고자 이메일이 있을 때만 — 없으면 관리자 기본 주소로 새지 않게
+    notify_weak = bool(notify_weak and email)
+    level = alert_level(best_grade, notify_weak) if top else None
+    # strong이면 '유력 후보(candidate)' — 확정 아님, 사용자 확인 필요(HITL). weak은 open 유지.
+    status = "candidate" if level == "strong" else "open"
 
+    watch_until = watch_until_after()  # 기본 기간(결과창 '알림 설정'에서 변경)
     lid = store.add(
         text, result.get("extracted", {}), result.get("region_set", []),
         result.get("queries", []), top, best_grade, status=status, email=email,
+        notify_weak=notify_weak, watch_until=watch_until,
     )
-    if status == "candidate" and top:  # 유력 후보 발견 → 알림(신고자 이메일로, 후보 목록 포함)
+    if level:  # 유력 후보 → 알림 / 약한 후보(옵트인) → 참고 알림 + 중복 방지 기록
         from apps.notifier import notifier
+        if level == "weak":
+            store.mark_weak_notified(lid, top.get("atc_id"))
         notifier.notify(
-            {"id": lid, "user_id": "anon", "text": text, "email": email}, raw_matches
+            {"id": lid, "user_id": "anon", "text": text, "email": email}, raw_matches,
+            weak=(level == "weak"),
         )
     return MatchResponse(
-        id=lid, status=status, query=text,
+        id=lid, status=status, watch_until=watch_until, query=text,
         extracted=result.get("extracted", {}),
         region_set=result.get("region_set", []),
         queries=result.get("queries", []),
@@ -125,7 +136,7 @@ def register_lost_item(req: LostItemRequest) -> MatchResponse:
     if not result.get("extracted", {}).get("is_lost_report", True):  # 분실물 신고 아님 → 저장·검색·알림 없이 종료
         return MatchResponse(id="", status="invalid", query=req.text,
                              extracted=result.get("extracted", {}), matches=[])
-    return _persist_and_respond(req.text, result, req.email or "")
+    return _persist_and_respond(req.text, result, req.email or "", req.notify_weak)
 
 
 @app.post("/lost-items/image", response_model=MatchResponse)
@@ -138,12 +149,13 @@ def register_lost_item_image(req: LostItemImageRequest) -> MatchResponse:
 
     result = agent_graph.run_image(req.image_b64, req.mime, note=req.note,
                                    lost_date=req.lost_date, lang=req.lang or "ko")
-    return _persist_and_respond(result.get("text", "사진 신고"), result, req.email or "")
+    return _persist_and_respond(result.get("text", "사진 신고"), result, req.email or "",
+                                req.notify_weak)
 
 
 @app.get("/lost-items")
 def list_lost_items() -> list[dict]:
-    """등록된 분실물 신고 목록(상태 포함). open=찾는중, matched=매칭됨."""
+    """등록된 분실물 신고 목록(상태 포함). open=찾는중, candidate=유력 후보, confirmed=확인, expired=알림 기간 만료."""
     return store.all_items()
 
 
@@ -155,23 +167,35 @@ def get_lost_item(lid: str) -> dict:
     return item
 
 
-@app.post("/lost-items/{lid}/email")
-def email_lost_item(lid: str, req: EmailResultsRequest) -> dict:
-    """사용자가 결과창에서 이메일 입력 후 '보내기' → 현재 후보들을 그 주소로 발송(+이후 알림도 그 주소).
+@app.post("/lost-items/{lid}/alerts")
+def update_lost_item_alerts(lid: str, req: AlertSettingsRequest) -> dict:
+    """결과창 '알림 설정' 저장 — 이메일·약한 후보 옵트인·알림 기간.
 
-    사용자 본인이 명시적으로 트리거. 이메일 미입력으로 등록한 뒤 뒤늦게 받고 싶을 때.
+    - 알림 기간: 지금부터 watch_days일 동안 새 습득물과 매일 재매칭. 만료(expired) 신고는 저장 시 재개.
+    - 새 이메일이면 현재 후보들을 그 주소로 바로 발송(사용자 본인이 명시적으로 트리거).
     """
+    from apps.agent.rematch import watch_until_after
+
     item = store.get(lid)
     if not item:
         raise HTTPException(status_code=404, detail="해당 분실물 신고 없음")
     email = (req.email or "").strip()
-    if "@" not in email:
+    if email and "@" not in email:
         raise HTTPException(status_code=400, detail="유효한 이메일이 아닙니다")
-    store.set_email(lid, email)
-    from apps.notifier import notifier
-    lost = {"id": lid, "user_id": "anon", "text": item.get("text", ""), "email": email}
-    notifier.notify(lost, req.matches or [])
-    return {"ok": True, "sent_to": email}
+    notify_weak = bool(req.notify_weak and email)  # 이메일 없으면 옵트인 무효
+    watch_until = watch_until_after(req.watch_days)
+    status = "open" if item.get("status") == "expired" else None  # 만료 신고 → 다시 찾는중
+    store.update_alerts(lid, email, notify_weak, watch_until, status=status)
+
+    sent_to = None
+    if email and email != (item.get("email") or "") and req.matches:
+        from apps.notifier import notifier
+        notifier.notify({"id": lid, "user_id": "anon", "text": item.get("text", ""), "email": email},
+                        req.matches)
+        store.mark_weak_notified(lid, req.matches[0].get("atc_id"))  # 방금 받은 1위는 약한 알림 재발송 안 함
+        sent_to = email
+    return {"ok": True, "email": email, "notify_weak": notify_weak, "watch_until": watch_until,
+            "status": status or item.get("status"), "sent_to": sent_to}
 
 
 @app.post("/lost-items/{lid}/confirm")

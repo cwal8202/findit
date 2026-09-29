@@ -41,6 +41,7 @@ class LostItemRequest(BaseModel):
     text: str                       # 자연어 분실 신고
     lost_date: str | None = None    # 명시하면 우선(없으면 LLM이 문장에서 환산)
     email: str | None = None        # 매칭 시 알림 받을 이메일(신고자별)
+    notify_weak: bool = False       # 임계 미만 '약한 후보'도 참고 알림 받기(옵트인, 이메일 있을 때만 유효)
     lang: str = "ko"                # 판정 근거 언어(외국인: "en" 등). 검색은 언어 무관.
 
 
@@ -50,12 +51,16 @@ class LostItemImageRequest(BaseModel):
     note: str = ""                  # 선택 메모(장소·날짜 등 사진이 모르는 정보)
     lost_date: str | None = None
     email: str | None = None
+    notify_weak: bool = False
     lang: str = "ko"
 
 
-class EmailResultsRequest(BaseModel):
-    email: str                      # 결과를 받을 이메일(사용자가 결과창에서 직접 입력)
-    matches: list[dict] = []        # 화면에 보인 후보들(그대로 메일에 담음)
+class AlertSettingsRequest(BaseModel):
+    """결과창 '알림 설정' — 이메일·약한 후보 옵트인·알림 기간. 새 이메일이면 현재 결과도 발송."""
+    email: str = ""                 # 알림 받을 이메일(비우면 알림 끔)
+    notify_weak: bool = False       # 임계 미만 '약한 후보'도 참고 알림(이메일 있을 때만 유효)
+    watch_days: int = 30            # 지금부터 며칠간 새 습득물과 재매칭·알림(1~watch_days_max)
+    matches: list[dict] = []        # 화면에 보인 후보들(새 이메일이면 그대로 메일에 담음)
 
 
 class ConfirmRequest(BaseModel):
@@ -69,7 +74,8 @@ class DismissRequest(BaseModel):
 class MatchResponse(BaseModel):
     """에이전트 매칭 결과 — 추출·지역집합·fan-out 쿼리까지 투명하게 노출."""
     id: str = ""                    # 저장된 분실물 id
-    status: str = "open"            # open(찾는중) | candidate(유력후보) | confirmed
+    status: str = "open"            # open(찾는중) | candidate(유력후보) | confirmed | expired
+    watch_until: str | None = None  # 지속 재매칭·알림 마감(ISO)
     query: str
     extracted: dict = {}
     region_set: list[str] = []

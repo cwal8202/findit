@@ -33,8 +33,9 @@ def _emit(msg: str) -> None:
 
 
 class Notifier(Protocol):
-    def notify(self, lost: dict, matches: list[dict]) -> None:
-        """matches: grade 내림차순 후보 리스트(matches[0]=최고 매칭)."""
+    def notify(self, lost: dict, matches: list[dict], weak: bool = False) -> None:
+        """matches: grade 내림차순 후보 리스트(matches[0]=최고 매칭).
+        weak=True: 임계 미만 '약한 후보' 참고 알림(신고자 옵트인 시에만) — 문구를 낮춰 기대치 조정."""
         ...
 
 
@@ -45,13 +46,14 @@ def _top(matches: list[dict]) -> dict:
 class ConsoleNotifier:
     """개발/데모용 — 콘솔로 매칭 알림 출력."""
 
-    def notify(self, lost: dict, matches: list[dict]) -> None:
+    def notify(self, lost: dict, matches: list[dict], weak: bool = False) -> None:
         m = _top(matches)
         who = lost.get("user_id", "anon")
         text = (lost.get("text") or "")[:30]
         extra = max(len(matches) - 1, 0)
+        head = "비슷한 후보(참고, 신뢰도 낮음)" if weak else "유력 후보 발견(확인 필요)!"
         _emit(
-            f"🔔 [알림→{who}] 분실물 '{text}' 유력 후보 발견(확인 필요)!\n"
+            f"🔔 [알림→{who}] 분실물 '{text}' {head}\n"
             f"    → {m.get('name')}/{m.get('color')} "
             f"(grade {m.get('grade')}) | 보관:{m.get('dep_place')} "
             f"지역:{m.get('region') or '-'} | 습득일:{m.get('found_at')}"
@@ -76,11 +78,24 @@ def _grade_color(g) -> str:
     return "#16a34a" if g >= 80 else "#d97706" if g >= 50 else "#9ca3af"
 
 
-def _text_body(lost: dict, matches: list[dict]) -> str:
+def _intro(lost: dict, weak: bool) -> tuple[str, str]:
+    """(제목줄, 설명) — 유력 후보 vs 약한 후보(참고)."""
+    t = (lost.get("text") or "")[:40]
+    if weak:
+        return ("🔎 비슷한 후보가 있어요 — 참고용",
+                f"등록하신 분실물 '{t}' 과(와) 정확히 일치하진 않지만(신뢰도 낮음) 비슷한 습득물이에요. "
+                "'약한 후보도 알림 받기'를 켜두셔서 보내드려요. 더 정확한 후보는 계속 찾고 있어요.")
+    return ("🔔 유력 후보를 찾았어요 — 확인해보세요",
+            f"등록하신 분실물 '{t}' 과(와) 일치할 가능성이 높은 습득물을 찾았어요. "
+            "본인 물건이면 아래 보관기관으로 수령을 문의하세요.")
+
+
+def _text_body(lost: dict, matches: list[dict], weak: bool = False) -> str:
     m = _top(matches)
+    head, desc = _intro(lost, weak)
     lines = [
-        f"등록하신 분실물 '{(lost.get('text') or '')[:40]}' 과(와) 일치할 가능성이 높은 습득물을 찾았어요.",
-        "맞는지 아래 정보를 확인하고, 본인 물건이면 보관 기관에 수령을 문의하세요.",
+        head,
+        desc,
         "",
         f"• 물품: {m.get('name')} / {m.get('color')}",
         f"• 분류: {m.get('category')}",
@@ -148,9 +163,10 @@ def _card_html(m: dict, primary: bool = False) -> str:
     )
 
 
-def _html_body(lost: dict, matches: list[dict]) -> str:
+def _html_body(lost: dict, matches: list[dict], weak: bool = False) -> str:
     e = _html.escape
     site = settings.public_base_url
+    head, desc = _intro(lost, weak)
     others = matches[1 : 1 + TOP_OTHERS]
     others_html = ""
     if others:
@@ -168,9 +184,8 @@ def _html_body(lost: dict, matches: list[dict]) -> str:
         'border-bottom:1px solid #eee;margin-bottom:16px">'
         f'{logo}<span style="font-size:20px;font-weight:800;color:#2563eb">FindIt</span>'
         '<span style="font-size:12px;color:#6b7280">분실물 매칭 AI</span></div>'
-        '<h2 style="font-size:18px;margin:0 0 8px">🔔 유력 후보를 찾았어요 — 확인해보세요</h2>'
-        f'<p style="margin:0 0 12px">등록하신 \'<b>{e((lost.get("text") or "")[:40])}</b>\' 과(와) 일치할 '
-        '가능성이 높은 습득물이에요. 본인 물건이면 아래 보관기관으로 수령을 문의하세요.</p>'
+        f'<h2 style="font-size:18px;margin:0 0 8px">{e(head)}</h2>'
+        f'<p style="margin:0 0 12px">{e(desc)}</p>'
         f'{_card_html(_top(matches), primary=True)}{others_html}'
         # 사이트 이동 CTA
         f'<div style="text-align:center;margin:22px 0 6px">'
@@ -188,7 +203,7 @@ def _html_body(lost: dict, matches: list[dict]) -> str:
 class EmailNotifier:
     """SMTP 이메일 알림(HTML+텍스트). 발송 실패해도 요청을 죽이지 않음(로그 후 진행)."""
 
-    def notify(self, lost: dict, matches: list[dict]) -> None:
+    def notify(self, lost: dict, matches: list[dict], weak: bool = False) -> None:
         # 수신자 = 신고자가 등록 시 입력한 이메일(신고별) → 없으면 config 기본값
         to = (lost.get("email") or "").strip() or settings.notify_email_to or settings.smtp_user
         if not (settings.smtp_user and settings.smtp_password and to) or not matches:
@@ -196,11 +211,12 @@ class EmailNotifier:
             return
         m = _top(matches)
         msg = EmailMessage()
-        msg["Subject"] = f"[FindIt] 분실물 매칭 알림 — {m.get('name')}"
+        kind = "비슷한 후보 알림(참고)" if weak else "분실물 매칭 알림"
+        msg["Subject"] = f"[FindIt] {kind} — {m.get('name')}"
         msg["From"] = formataddr(("FindIt", settings.smtp_user))
         msg["To"] = to
-        msg.set_content(_text_body(lost, matches))
-        msg.add_alternative(_html_body(lost, matches), subtype="html")
+        msg.set_content(_text_body(lost, matches, weak))
+        msg.add_alternative(_html_body(lost, matches, weak), subtype="html")
         if _LOGO.exists():  # HTML 파트에 로고 인라인 첨부(cid:findit-logo)
             try:
                 html_part = msg.get_payload()[-1]

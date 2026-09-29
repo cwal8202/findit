@@ -1,7 +1,8 @@
 """분실물 저장소 — SQLite / PostgreSQL 이중 백엔드.
 
 - `DATABASE_URL`(postgres://...) 있으면 PostgreSQL, 없으면 SQLite(로컬 개발).
-- 인터페이스(init/add/get/list_open/all_items/update_match/confirm/dismiss)는 동일 → 나머지 코드 무변경.
+- 인터페이스(init/add/get/list_open/all_items/update_match/update_alerts/confirm/dismiss/...)는 동일 → 나머지 코드 무변경.
+- status: open(찾는중) | candidate(유력 후보) | confirmed(확인) | expired(알림 기간 만료 — 재매칭 중단).
 - JSON 컬럼은 TEXT에 json.dumps로 저장(두 DB 공통). 개인정보 포함 → DB는 git 제외.
 """
 
@@ -23,7 +24,7 @@ else:
 
     from apps.api.config import settings
 
-_JSON_COLS = ("extracted", "region_set", "queries", "best_match", "dismissed")
+_JSON_COLS = ("extracted", "region_set", "queries", "best_match", "dismissed", "weak_notified")
 
 
 def _now() -> str:
@@ -86,17 +87,26 @@ def init() -> None:
             best_match TEXT,
             best_grade INTEGER,
             dismissed TEXT,
+            notify_weak INTEGER DEFAULT 0,
+            weak_notified TEXT,
+            watch_until TEXT,
             created_at TEXT,
             matched_at TEXT
         )
     """)
-    if not _PG:  # 기존 SQLite DB 누락 컬럼 마이그레이션(신규 Postgres는 위 스키마로 충분)
+    # 기존 DB 누락 컬럼 마이그레이션 (운영 Postgres도 테이블이 이미 있어 CREATE로는 안 생김)
+    added = {"email": "TEXT", "dismissed": "TEXT", "notify_weak": "INTEGER DEFAULT 0",
+             "weak_notified": "TEXT", "watch_until": "TEXT"}
+    if _PG:
+        for col, typ in added.items():
+            _run(f"ALTER TABLE lost_items ADD COLUMN IF NOT EXISTS {col} {typ}")
+    else:
         conn = _conn()
         try:
             cols = [r[1] for r in conn.execute("PRAGMA table_info(lost_items)")]
-            for col in ("email", "dismissed"):
+            for col, typ in added.items():
                 if col not in cols:
-                    conn.execute(f"ALTER TABLE lost_items ADD COLUMN {col} TEXT")
+                    conn.execute(f"ALTER TABLE lost_items ADD COLUMN {col} {typ}")
             conn.commit()
         finally:
             conn.close()
@@ -105,20 +115,23 @@ def init() -> None:
 def _to_dict(d: dict) -> dict:
     for k in _JSON_COLS:
         d[k] = json.loads(d[k]) if d.get(k) else None
+    d["notify_weak"] = bool(d.get("notify_weak"))
     return d
 
 
 def add(text: str, extracted: dict, region_set: list, queries: list,
         best_match: dict | None, best_grade: int | None,
-        status: str = "open", user_id: str = "anon", email: str = "") -> str:
+        status: str = "open", user_id: str = "anon", email: str = "",
+        notify_weak: bool = False, watch_until: str | None = None) -> str:
     lid = uuid.uuid4().hex[:12]
     _run(
         "INSERT INTO lost_items (id,user_id,email,text,extracted,region_set,queries,"
-        "status,best_match,best_grade,created_at,matched_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+        "status,best_match,best_grade,notify_weak,watch_until,created_at,matched_at)"
+        " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         (lid, user_id, email, text, json.dumps(extracted, ensure_ascii=False),
          json.dumps(region_set, ensure_ascii=False), json.dumps(queries, ensure_ascii=False),
          status, json.dumps(best_match, ensure_ascii=False) if best_match else None,
-         best_grade, _now(), _now() if status == "matched" else None),
+         best_grade, int(notify_weak), watch_until, _now(), _now() if status == "matched" else None),
     )
     return lid
 
@@ -144,8 +157,34 @@ def update_match(lid: str, best_match: dict, best_grade: int, status: str) -> No
 
 
 def set_email(lid: str, email: str) -> None:
-    """알림 받을 이메일 갱신(결과창에서 뒤늦게 입력 시). 이후 재매칭 알림도 이 주소로."""
+    """알림 받을 이메일 갱신. 이후 재매칭 알림도 이 주소로."""
     _run("UPDATE lost_items SET email=? WHERE id=?", (email or "", lid))
+
+
+def update_alerts(lid: str, email: str, notify_weak: bool, watch_until: str,
+                  status: str | None = None) -> None:
+    """결과창 '알림 설정' 저장 — 이메일·약한 후보 옵트인·알림 기간(+만료 신고 재개 시 status)."""
+    if status is None:
+        _run("UPDATE lost_items SET email=?, notify_weak=?, watch_until=? WHERE id=?",
+             (email or "", int(notify_weak), watch_until, lid))
+    else:
+        _run("UPDATE lost_items SET email=?, notify_weak=?, watch_until=?, status=? WHERE id=?",
+             (email or "", int(notify_weak), watch_until, status, lid))
+
+
+def set_status(lid: str, status: str) -> None:
+    _run("UPDATE lost_items SET status=? WHERE id=?", (status, lid))
+
+
+def mark_weak_notified(lid: str, atc_id: str) -> list[str]:
+    """약한 후보 알림을 보낸 습득물 기록 → 같은 후보로 재매칭마다 반복 알림 방지."""
+    row = get(lid)
+    sent = (row.get("weak_notified") if row else None) or []
+    if atc_id and atc_id not in sent:
+        sent.append(atc_id)
+    _run("UPDATE lost_items SET weak_notified=? WHERE id=?",
+         (json.dumps(sent, ensure_ascii=False), lid))
+    return sent
 
 
 def confirm(lid: str, match: dict) -> None:
