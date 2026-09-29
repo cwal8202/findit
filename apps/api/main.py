@@ -153,18 +153,39 @@ def register_lost_item_image(req: LostItemImageRequest) -> MatchResponse:
                                 req.notify_weak)
 
 
+def _public_item(it: dict) -> dict:
+    """공개 목록용 화이트리스트 — 이메일 등 개인정보·내부 필드와 신고 id는 제외.
+
+    id는 신고자만 받는 값(등록 응답)이라 목록에 노출하면 남이 /alerts·/confirm·/dismiss로 조작 가능.
+    """
+    bm = it.get("best_match") or None
+    return {
+        "text": it.get("text", ""),
+        "status": it.get("status"),
+        "best_match": {"name": bm.get("name")} if bm else None,
+        "best_grade": it.get("best_grade"),
+        "created_at": it.get("created_at"),
+        "watch_until": it.get("watch_until"),
+    }
+
+
+_PRIVATE_FIELDS = ("email", "user_id")
+
+
 @app.get("/lost-items")
 def list_lost_items() -> list[dict]:
-    """등록된 분실물 신고 목록(상태 포함). open=찾는중, candidate=유력 후보, confirmed=확인, expired=알림 기간 만료."""
-    return store.all_items()
+    """등록된 분실물 신고 목록(상태 포함). open=찾는중, candidate=유력 후보, confirmed=확인, expired=알림 기간 만료.
+    공개 목록이므로 개인정보·id 제외(`_public_item`)."""
+    return [_public_item(it) for it in store.all_items()]
 
 
 @app.get("/lost-items/{lid}")
 def get_lost_item(lid: str) -> dict:
+    """신고 상세 — id를 가진 신고자용. 그래도 이메일 등 개인정보는 응답에 싣지 않음."""
     item = store.get(lid)
     if not item:
         raise HTTPException(status_code=404, detail="해당 분실물 신고 없음")
-    return item
+    return {k: v for k, v in item.items() if k not in _PRIVATE_FIELDS}
 
 
 @app.post("/lost-items/{lid}/alerts")

@@ -673,6 +673,15 @@ open 신고마다 매일 검색+LLM grading 비용이 무한 누적 — "1년 �
 - 신고 목록: "기간 만료" 상태 뱃지, 찾는중 항목엔 "알림 ~날짜" 표시.
 - 테스트: `tests/test_watch.py`(만료 시 재매칭 생략, 기존 신고 폴백, 알림 설정 저장·새 이메일만 발송·만료 재개·검증) → 총 50개.
 
+### 🔒 공개 신고 목록 개인정보·id 노출 차단 (2026-09-29)
+
+- **문제**: `GET /lost-items`(웹 "최근 신고 목록")가 `SELECT *` 그대로 → **모든 신고자의 이메일**이 누구에게나 노출.
+  게다가 신고 **id**도 노출 → 남이 `/alerts`로 알림 이메일을 가로채거나 `/confirm`·`/dismiss`로 상태 조작 가능.
+- **수정**: 목록은 화이트리스트(`_public_item`: text·status·best_match.name·best_grade·created_at·watch_until)만 반환,
+  **id·email·user_id·내부 필드 제외**. id는 등록 응답으로 신고자 본인만 받음. 상세(`GET /lost-items/{id}`)도 email·user_id 제외.
+- 남은 한계(인증 없음): 목록은 여전히 모든 신고의 **문장(text)** 을 보여줌 → 향후 브라우저별(localStorage에 내 신고 id) 목록 또는 인증으로 범위 축소 검토.
+- 테스트 2개 추가 → 총 52개.
+
 ### ⚠ 반복 병목: Gemini 무료 임베딩 쿼터 (개발 루프 차단)
 
 - 이번 세션에서 임베딩 대량/자유질의 시 **5회 이상 429 RESOURCE_EXHAUSTED**. 소량 버스트만 허용, 회복에 10~15분.
@@ -717,7 +726,7 @@ find_it/
 │   ├─ opensearch/                 Dockerfile + mappings/found_items.json
 │   └─ caddy/Caddyfile             프로덕션 리버스프록시(자동 HTTPS)
 ├─ fixtures/responses/             실 API 응답 샘플(진실의 원천, XML 4종)
-├─ tests/                          pytest (핵심 로직 50개, 외부서비스 목킹)
+├─ tests/                          pytest (핵심 로직 52개, 외부서비스 목킹)
 ├─ docs/                           PROGRESS.md(이 문서) · DEPLOY.md · screenshots/
 ├─ .github/workflows/deploy.yml    main push → 서버 SSH 자동배포
 ├─ docker-compose.prod.yml         프로덕션(OpenSearch+Postgres+backend+Caddy)
