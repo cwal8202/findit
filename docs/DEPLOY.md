@@ -101,6 +101,11 @@ main push → git pull --ff-only → docker compose up -d --build backend caddy 
 - 수동 트리거도 가능(Actions 탭 > Deploy > Run workflow / `workflow_dispatch`).
 
 > 자동배포는 `backend`·`caddy`만 재빌드(코드/웹 변경분). OpenSearch·Postgres는 데이터 보존 위해 건드리지 않음.
+> DB 스키마 변경(컬럼 추가)은 백엔드 기동 시 `store.init()`이 `ADD COLUMN IF NOT EXISTS`로 자동 적용 — 수동 마이그레이션 불필요.
+
+> ⚠ **서버에서 레포 파일을 직접 고치지 말 것** — 권한(`chmod`)만 바꿔도 git은 로컬 변경으로 보고,
+> 그 파일이 다음 커밋에 포함되면 `git pull --ff-only`가 실패해 **자동배포가 멈춘다**. 변경은 레포에 커밋(실행권한은
+> `git update-index --chmod=+x`). 이미 생겼다면 `git status`로 확인 후 `git checkout -- <파일>`.
 
 ---
 
@@ -111,6 +116,15 @@ main push → git pull --ff-only → docker compose up -d --build backend caddy 
 - 중지(과금 종료 전, 데이터 볼륨 유지): `docker compose -f docker-compose.prod.yml down`
 - 완전 삭제: 위 + `docker volume rm findit_findit-os-data findit_findit-pg-data findit_findit-caddy-data findit_findit-caddy-config`
 - 인증서 갱신은 Caddy가 자동. `findit-caddy-data` 볼륨에 인증서 영속(재기동해도 재발급 안 함).
+- **실시간 진행(SSE)**: 웹 검색은 `POST /lost-items/stream`·`/lost-items/image/stream`(`text/event-stream`)을 씀.
+  백엔드가 `X-Accel-Buffering: no`·`Cache-Control: no-cache`를 보냄. 라이브에서 단계가 한꺼번에 뜨면(프록시 버퍼링)
+  `Caddyfile`의 `reverse_proxy backend:8000` 블록에 `flush_interval -1` 추가 후 caddy 재기동.
+- 스트림 점검(저장·메일 없는 비신고 입력): Windows 셸은 한글 인코딩이 깨지므로 UTF-8 JSON 파일로 보낼 것.
+  ```bash
+  printf '{"text":"오늘 날씨 어때?"}' > q.json
+  curl -N -X POST https://<도메인>/lost-items/stream -H "Content-Type: application/json" --data-binary @q.json
+  ```
+  → `event: extract` → `event: result`(status `invalid`)가 오면 정상.
 
 ## 이후 강화(선택)
 - **React/Vercel 프론트 분리**: 분리 시 FastAPI에 CORS 허용 오리진 추가.

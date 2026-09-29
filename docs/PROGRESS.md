@@ -9,13 +9,21 @@
 ## 0. 한눈에 보기
 
 - **현재 국면**: **라이브 서비스 배포 완료**(수집→색인→검색+지역가점→grading→에이전트→DB→지속 재매칭→**이메일 알림**→**웹 UI**).
-  FIND-1~60 커밋·푸시. VPS + Docker Compose + Caddy HTTPS + GitHub Actions 자동배포 + 매일 cron 수집으로 **https://findit-lost.duckdns.org** 운영 중(심사 기간 한시). 검색 품질은 eval로 검증 완료.
-- **동작 흐름**: 자연어/**사진** 신고 → 유력 후보 제시(HITL, 자동확정 X) → 사용자 [내 물건이에요]/[아니에요] →
-  확인 시 **수령 안내(보관기관·전화·지도·lost112)**. 매칭되면 신고자 이메일로 알림(후보목록·이미지 썸네일 포함).
+  FIND-1~66 커밋·푸시. VPS + Docker Compose + Caddy HTTPS + GitHub Actions 자동배포 + 매일 cron 수집으로 **https://findit-lost.duckdns.org** 운영 중(심사 기간 한시). 검색 품질은 eval로 검증 완료.
+- **동작 흐름**: 자연어/**사진** 신고 → **추출→지역→검색어→검색→판정 실시간 표시**(판정 전 후보 먼저) → 유력 후보 제시(HITL, 자동확정 X) →
+  사용자 [내 물건이에요]/[아니에요] → 확인 시 **수령 안내(보관기관·전화·지도·lost112)**.
+  신고는 **알림 기간(기본 30일) 동안 매일 재매칭**, 유력 후보(≥80) 또는 옵트인 시 약한 후보(50~79)가 나오면 이메일 알림.
 - **차별점 2가지**: ① 더 똑똑한 검색(자연어·의미 임베딩·사진 특징추출) ② **외국인 접근성**(다국어 UI + 다국어 검색 — 관공서는 한국어 전용).
-- **다음 액션 후보(심사 후 고도화)**: 이미지 임베딩(CLIP) 레인 / 카카오 알림톡(사업자 확보 시) / 인증(user_id) / React·Vercel 프론트 분리 / 브라우저 확장(MV3).
+- **2026-09-29 운영 점검·개선(FIND-61~66)**: 문서 현행화 / 알림 개선(약한 후보 옵트인·결과창 알림 설정·알림 기간 만료) /
+  공개 목록 이메일·id 노출 차단 / **일일 수집 누락 수정**('어제분'만 조회해 새 데이터 99% 누락 → 최근 7일 창 + 기존 스킵) /
+  실시간 진행 표시(SSE). 상세는 아래 5절 해당 날짜 항목.
+- **다음 확인(2026-09-30)**: 수정된 수집의 첫 실행 결과(인덱스 ~6천 → ~2.4만 건, 재매칭 신규 매칭·알림 발송, 30일 지난 신고 expired 전환) /
+  라이브에서 실시간 진행이 단계별로 끊겨 보이는지(프록시 버퍼링 여부).
+- **다음 액션 후보(심사 후 고도화)**: 이미지 임베딩(CLIP) 레인 / 카카오 알림톡(사업자 확보 시) / 인증(user_id) — 공개 목록 범위 축소 포함 /
+  React·Vercel 프론트 분리 / 브라우저 확장(MV3) / 9/1~9/21 누락분 백필(보류 중).
 - **최근 실측**: 지역 가점 hard셋 MRR 0.084→0.857 / gazetteer+지오코딩 95% / grading 근거·신뢰도 /
-  에이전트 "어제 2호선 검정 닥스 지갑"→DAKS 95점 / 이미지 레인(Vision 특징추출)·다국어 검색·지속 재매칭·이메일 알림·HITL 확인·수령안내 라이브 동작.
+  에이전트 "어제 2호선 검정 닥스 지갑"→DAKS 95점 / 습득물 등록 지연: 자정 '어제분' 5건 → 하루 뒤 같은 날짜 ~2,800건 /
+  7일치 목록 ~18,700건 조회 ≈ 1분, 상세 0.16s/건.
 - **알림**: 이메일(EmailNotifier, SMTP). 카카오 알림톡은 **사업자등록 필수**라 비사업자 불가 → 이메일 채택.
 
 ---
@@ -40,10 +48,12 @@
 6. **앱 실행 + 동작 확인**:
    ```bash
    uv run uvicorn apps.api.main:app --reload   # http://localhost:8000 (웹) · /docs (API)
-   # 실 데이터 갱신(선택): uv run python -m apps.collector.run --source both --start 20260901 --end 20260901 --max 200 --enrich --rematch
+   # 실 데이터 갱신(선택, 기존 항목 스킵): uv run python -m apps.collector.run --source both --start 20260901 --end 20260907 --rows 1000 --max 20000 --enrich --rematch
    # eval: python eval/run_os.py / run_boost.py / run_grade.py
    ```
 7. **배포/운영**: 실서비스는 VPS + `docker-compose.prod.yml`(OpenSearch+Postgres+backend+Caddy). 배포·HTTPS·자동배포·cron은 [`DEPLOY.md`](DEPLOY.md) 참고. main push → GitHub Actions 자동배포.
+   - 운영 점검은 서버 `/root/findit/daily_collect.log`(매일 수집·재매칭 결과: 대상 건수·최고 grade·신규 매칭)부터.
+   - ⚠ 서버에서 파일 권한·내용을 직접 바꾸면 git이 로컬 변경으로 보고 자동배포(`git pull --ff-only`)가 실패한다 → 변경은 레포로.
 8. **다음 작업 후보(심사 후 고도화)**: 이미지 임베딩(CLIP) 레인 / 카카오 알림톡(사업자 확보 시) / 인증(user_id) / React·Vercel 프론트 분리 / 브라우저 확장(MV3) / uniq 포함 임베딩 재색인.
 
 **주의**: `.env`(키)는 git에 없음(같은 컴퓨터엔 로컬에 존재). 다른 컴퓨터면 `.env` 새로 작성 필요.
@@ -721,11 +731,11 @@ open 신고마다 매일 검색+LLM grading 비용이 무한 누적 — "1년 �
 - **입력 하드닝**: 신고 문장·사진 메모 500자 상한을 서버에서도 강제(기존엔 화면 `maxlength`만) → 초과 시 422.
 - 테스트: `tests/test_stream.py`(그래프 단계 순서·비신고 조기 종료·사진 visual 단계, API 이벤트 순서·판정 전 스냅샷·저장·알림, 오류 이벤트, 500자) → 총 63개.
 
-### ⚠ 반복 병목: Gemini 무료 임베딩 쿼터 (개발 루프 차단)
+### ✅ (해결) 반복 병목: Gemini 무료 임베딩 쿼터 (개발 루프 차단)
 
-- 이번 세션에서 임베딩 대량/자유질의 시 **5회 이상 429 RESOURCE_EXHAUSTED**. 소량 버스트만 허용, 회복에 10~15분.
+- 개발 초기 임베딩 대량/자유질의 시 **5회 이상 429 RESOURCE_EXHAUSTED**. 소량 버스트만 허용, 회복에 10~15분.
 - 캐시된 골든셋 eval/데모는 되지만, **새 자유질의는 즉석 임베딩 필요 → 매번 막힘**. 프로덕션에서도 문제.
-- **결정 필요**: 개발/데모 임베딩을 (a) **로컬 모델**(무제한, 설치+재임베딩 필요)로 전환 / (b) **Gemini 유료** / (c) 리셋 대기.
+- **결정: (b) Gemini 유료(종량제) 활성화** → rate limit 해소. 비용은 임베딩 하루 수 센트 수준(수집 ~2,800건/일 기준).
 
 ### Gemini 무료 티어 임베딩 쿼터 (실측 주의)
 
@@ -750,16 +760,16 @@ open 신고마다 매일 검색+LLM grading 비용이 무한 누적 — "1년 �
 ```
 find_it/
 ├─ apps/
-│   ├─ api/            FastAPI 앱: config·gemini·region·search·models·main (엔드포인트 11개)
-│   ├─ agent/          매칭 에이전트(LangGraph): extract·route·fanout·graph·rematch
+│   ├─ api/            FastAPI 앱: config·gemini(LLM 호출 전부)·region·search·models·main (엔드포인트 13개, SSE 2개 포함)
+│   ├─ agent/          매칭 에이전트(LangGraph): extract·route·fanout·graph(단계 스트림)·rematch(알림 등급·기간)
 │   │   └─ prompts/    extract.txt · extract_image.txt · route.txt (프롬프트 파일 분리)
-│   ├─ collector/      수집기: client(data.go.kr XML)·normalize·run(CLI)
+│   ├─ collector/      수집기: client(data.go.kr XML)·normalize·run(CLI — 기존 항목 스킵, bulk 분할)
 │   ├─ web/            단일 페이지 웹(index.html + static/) — 랜딩·AI검색·둘러보기, 다국어
 │   ├─ store.py        분실물 저장소 (PostgreSQL/SQLite 이중 백엔드, DATABASE_URL로 선택)
 │   └─ notifier.py     알림 (Notifier 인터페이스 + Console/Email)
 ├─ eval/               골든셋 + 성능 실험(BM25/EMB/HYB/가점 스윕/grading, OpenSearch 색인·검색·데모)
 │   └─ data/           corpus.json(2,000건)·emb_cache·grade_cache·gazetteer·geocoded·골든셋 등
-├─ scripts/            backfill_region · geocode_region · daily_collect.sh(cron 수집)
+├─ scripts/            backfill_region · geocode_region · daily_collect.sh(cron 수집 — 최근 7일 창, 실행권한 755로 커밋)
 ├─ infra/
 │   ├─ docker-compose.yml          로컬 OpenSearch(nori)
 │   ├─ opensearch/                 Dockerfile + mappings/found_items.json
@@ -787,13 +797,14 @@ find_it/
 | **2. 의미검색 고도화** | 텍스트 임베딩(768-dim) KNN + 지역 soft 가점 + LLM grading 재정렬 + eval 골든셋(MRR 0.63→0.96) | ✅ |
 | **3. 이미지 레인** | Vision 카테고리별 특징추출 → 텍스트 파이프라인 합류 + Gemini 사진 대조(visual_score) | ✅ (CLIP 이미지 임베딩 KNN은 심사 후) |
 | **4. 분실물 등록 + 에이전트** | 자연어/사진 등록(LangGraph: extract→route→fanout→search→grade) + DB 저장 + 지속 재매칭 + HITL 확인/수령안내 | ✅ |
-| **5. 수집기(collector)** | 실 API 페이징 + 상세 enrich + 임베딩 + `_bulk` upsert, `--rematch`, cron 일일 수집 | ✅ |
-| **6. 알림/채널** | `Notifier` 인터페이스 + Console/**Email**(SMTP) | ✅ (카카오 알림톡은 사업자 확보 후) |
-| **7. 웹/다국어** | 랜딩 + AI검색 + 전체 둘러보기(필터·목록) + 다국어(Google 번역 위젯 + 서버 검색어 번역) | ✅ |
-| **8. 배포/운영** | VPS + docker-compose(OpenSearch+Postgres+backend+Caddy) + HTTPS + GitHub Actions 자동배포 + cron | ✅ (라이브) |
-| **9. 심사 후 고도화** | 이미지 임베딩(CLIP) 레인 · 카카오 알림톡 · 인증(user_id) · React/Vercel 프론트 분리 · 브라우저 확장(MV3) | ⏳ |
+| **5. 수집기(collector)** | 실 API 페이징 + 상세 enrich + 임베딩 + `_bulk` upsert(분할), `--rematch`, cron 일일 수집(**최근 7일 창 + 기존 항목 스킵**) | ✅ (첫 실행 결과 09-30 확인) |
+| **6. 알림/채널** | `Notifier` 인터페이스 + Console/**Email**(SMTP) + 약한 후보 옵트인·알림 기간(만료) | ✅ (카카오 알림톡은 사업자 확보 후) |
+| **7. 웹/다국어** | 랜딩 + AI검색(**실시간 진행 SSE**) + 결과창 알림 설정 + 전체 둘러보기(필터·목록) + 다국어(Google 번역 위젯 + 서버 검색어 번역) | ✅ |
+| **8. 배포/운영** | VPS + docker-compose(OpenSearch+Postgres+backend+Caddy) + HTTPS + GitHub Actions 자동배포 + cron + DB 자동 마이그레이션 | ✅ (라이브) |
+| **8+. 보안/개인정보** | 공개 목록 이메일·id 비노출, 입력 500자 서버 강제 | ✅ (인증 없음 — 목록에 신고 문장은 공개) |
+| **9. 심사 후 고도화** | 이미지 임베딩(CLIP) 레인 · 카카오 알림톡 · 인증(user_id) · React/Vercel 프론트 분리 · 브라우저 확장(MV3) · 9월 초 누락분 백필 | ⏳ |
 
-> **현재**: 전체 파이프라인 라이브 배포 완료(https://findit-lost.duckdns.org). 남은 것은 9단계(심사 후 고도화).
+> **현재**: 전체 파이프라인 라이브 배포 완료(https://findit-lost.duckdns.org). 남은 것은 9단계(심사 후 고도화)와 09-30 운영 확인.
 
 ---
 
@@ -803,7 +814,8 @@ find_it/
 - 사용자 식별은 내부 `user.id`. `kakao_id`를 FK로 쓰지 않음.
 - **장소·시간은 가점, 하드필터 금지.**
 - 되돌릴 수 없는 액션(공식 신고 제출)은 자동화 금지 — **HITL(사용자 승인) 유지.**
-- LLM 호출은 목적별로 `apps/agent/llm/` 함수로 분리, 프롬프트는 `apps/agent/prompts/`에 파일로.
+- LLM 호출은 목적별 함수로 분리 — 현재 `apps/api/gemini.py`(embed_query·embed_texts·generate_json·generate_json_image·compare_images·grade).
+  프롬프트는 `apps/agent/prompts/`에 파일로(extract·extract_image·route). ※ grade 프롬프트는 아직 `gemini.py` 안에 있음(파일 분리 대상).
 - 공공 API 필드는 **`fixtures/responses/` 샘플이 진실.** 추측으로 필드명 만들지 않음.
 - OpenSearch 매핑 변경 시 `infra/opensearch/mappings/` JSON도 반드시 갱신.
 - 큰 작업은 구현 전 계획 제시·승인.

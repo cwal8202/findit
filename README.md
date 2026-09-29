@@ -24,8 +24,9 @@
 
 - **말하듯 검색 + 의미 매칭** — *"어제 2호선에서 검정 지갑"* 처럼 자연어로. 키워드가 아니라 **뜻**으로 찾아 표현이 달라도·오타·한↔영 커버(BM25 MRR 0.63 → 임베딩 **0.96**).
 - **왜 후보인지 근거(LLM) + 📷 사진 검색(Vision)** — 목록만 주는 관공서와 달리 **판단 근거**·사진 대조까지.
+  AI가 **무엇을 하는지(추출→지역→검색→판정) 실시간으로 보여주고**, 판정 전 후보부터 먼저 띄움.
 - **장소가 불확실해도** — 노선 경유 지역까지 넓혀 순위에 반영하고 *왜* 그 지역들을 봤는지 **설명**.
-- **안 찾아봐도 알림** — 신고를 저장해두면 새 습득물 유입마다 자동 재매칭 → **이메일 알림**.
+- **안 찾아봐도 알림** — 신고를 저장해두면 새 습득물 유입마다 자동 재매칭 → **이메일 알림**(알림 기간·약한 후보 알림은 사용자가 설정).
 - **다국어(외국인 접근성)** — 관공서는 한국어로만 검색되지만(영어로 치면 0건), FindIt은 **어떤 언어로 검색해도** 결과 + 화면·수령안내 다국어.
 
 > 포지셔닝: 관공서 데이터를 **대체가 아니라 보완** — 더 똑똑한 검색·매칭 + 접근성 레이어. 실제 수령·권리는 관공서 소관 → **HITL(사용자 확인)** 유지.
@@ -48,9 +49,9 @@
 
 **✅ 동작하는 전체 파이프라인** (자연어 신고 → 매칭 → 저장 → 지속 재매칭 → 알림 → 웹)
 ```
-수집기(data.go.kr) → OpenSearch 색인 → 검색+지역가점 → LLM grading → 매칭 에이전트(LangGraph)
-                                                                    ↓
-              웹 화면 ← 알림(Notifier) ← 지속 재매칭 ← 분실물 DB(SQLite)
+수집기(data.go.kr, 매일 최근 7일) → OpenSearch 색인 → 검색+지역가점 → LLM grading → 매칭 에이전트(LangGraph)
+                                                                                  ↓ (단계별 SSE)
+              웹 화면 ← 알림(Notifier·이메일) ← 지속 재매칭 ← 분실물 DB(PostgreSQL / 로컬 SQLite)
 ```
 - **매칭 에이전트**: `POST /lost-items`(자연어 한 줄 → 매칭) · `POST /lost-items/image`(📷 사진 → Vision 특징추출 → 매칭)
   · 웹은 `…/stream`(SSE)으로 **추출 → 지역 → 검색어 → 검색 → 판정을 실시간 표시**(판정 전 후보를 먼저 보여줌)
@@ -59,6 +60,9 @@
 - **다국어**: 어떤 언어로 검색해도 결과(서버가 검색어 번역) + 화면·수령안내 다국어(Google 번역 위젯)
 - **지속 재매칭 + 알림**: 신고 저장(open) → 새 습득물 유입마다 재매칭 → 성립 시 **이메일 알림**(로고·매칭 근거·사이트 버튼 포함).
   결과창 **알림 설정**에서 이메일·**알림 기간(7~180일, 기본 30일 — 지나면 재매칭 중단)**·**약한 후보(grade 50~79) '참고' 알림** 옵트인을 변경
+- **매일 수집(cron 00:00 KST)**: 습득물은 며칠에 걸쳐 등록되므로 **최근 7일 창을 매일 재조회**, 이미 색인된 항목은 건너뛰고
+  새 항목만 상세 조회·임베딩 → 색인 → 재매칭. (기존 '어제분'만 조회 시 새 데이터 99% 누락 → 수정, [PROGRESS](docs/PROGRESS.md) 참고)
+- **개인정보**: 공개 신고 목록은 문장·상태·최고 매칭명만 노출(이메일·신고 id 비노출). 신고 조작은 등록 시 받은 id를 가진 본인만.
 
 **✅ 검색 품질 실측 (eval, 골든셋 29문항)**
 
@@ -86,21 +90,23 @@
 ## 기술 스택
 
 Python 3.12 · FastAPI · LangGraph · Gemini API(embedding·grading·**Vision 이미지 추출**·검색어 번역) ·
-OpenSearch(nori, 768-dim HNSW KNN) · PostgreSQL(배포) / SQLite(로컬) · 바닐라 JS 웹(랜딩+**다국어**) ·
+OpenSearch(nori, 768-dim HNSW KNN) · PostgreSQL(배포) / SQLite(로컬) · 바닐라 JS 웹(랜딩+**다국어**+**SSE 실시간 진행**) ·
 Docker Compose · **Caddy(자동 HTTPS)** · **GitHub Actions(자동배포)** · pytest · uv · ruff
 
 ## 레포 구조
 
 ```
 eval/        골든셋 + 성능 실험 (BM25/임베딩/하이브리드/스윕, OpenSearch 색인·검색·데모)
-infra/       docker-compose + OpenSearch(nori) Dockerfile + 인덱스 매핑
+infra/       로컬 docker-compose + OpenSearch(nori) Dockerfile + 인덱스 매핑 + Caddyfile(프로덕션 HTTPS)
 fixtures/    공공 API 실응답 샘플 (진실의 원천)
-docs/        PROGRESS.md (설계·실험 기록)
-apps/api/       FastAPI 엔드포인트 (/found-items/search·/browse, /lost-items[+/image, /stream], /confirm·/dismiss·/alerts, /health, GET /)
-apps/agent/     매칭 에이전트 (LangGraph: extract→route→fanout→search→grade) + rematch(지속 재매칭)
-apps/collector/ 수집기 (data.go.kr 습득물 → 상세 enrich → 임베딩 → 색인, --rematch)
-apps/store.py   분실물 저장소 (PostgreSQL/SQLite 이중 백엔드, DATABASE_URL로 선택)
-apps/notifier.py 알림 (Notifier 인터페이스 + ConsoleNotifier, 추후 KakaoNotifier)
+scripts/     daily_collect.sh(cron 일일 수집) · region 백필/지오코딩
+tests/       pytest 63개 (외부 서비스 목킹)
+docs/        PROGRESS.md (설계·실험·결정 기록) · DEPLOY.md (배포·운영) · screenshots/
+apps/api/       FastAPI 엔드포인트 13개 (/found-items/search·/browse, /lost-items[+/image, /stream], /alerts·/confirm·/dismiss, /health, GET /)
+apps/agent/     매칭 에이전트 (LangGraph: extract→route→fanout→search→grade, 단계 스트림) + rematch(지속 재매칭·알림 기간)
+apps/collector/ 수집기 (data.go.kr 목록 → 기존 항목 스킵 → 새 항목 상세 enrich → 임베딩 → 색인, --rematch)
+apps/store.py   분실물 저장소 (PostgreSQL/SQLite 이중 백엔드, DATABASE_URL로 선택, 누락 컬럼 자동 마이그레이션)
+apps/notifier.py 알림 (Notifier 인터페이스 + Console/Email, 유력·약한 후보 문구 구분)
 apps/web/       웹 화면 (단일 페이지, FastAPI가 GET /로 서빙)
 ```
 > `apps/extension`(브라우저 확장)은 다음 단계 예정.
@@ -125,10 +131,11 @@ python eval/index_opensearch.py                                   # 캐시 임�
 uv run uvicorn apps.api.main:app --reload      # /docs 에 API 문서
 ```
 
-**4. 수집기 (실 데이터 갱신, 선택)** — 스케줄과 무관한 CLI. 색인 후 지속 재매칭까지:
+**4. 수집기 (실 데이터 갱신, 선택)** — 스케줄과 무관한 CLI. 이미 색인된 항목은 건너뛰고, 색인 후 지속 재매칭까지:
 ```bash
-uv run python -m apps.collector.run --source both --start 20260901 --end 20260901 --max 200 --enrich --rematch
+uv run python -m apps.collector.run --source both --start 20260901 --end 20260907 --rows 1000 --max 20000 --enrich --rematch
 ```
+> 상세 조회(항목당 1콜, 일 10만 한도)·임베딩은 새 항목에만 쓰임. 처음엔 기간을 짧게 해 비용을 확인하세요.
 
 **성능 실험(eval)**: `python eval/run_os.py`(OpenSearch 실측) · `python eval/run_boost.py`(지역 가점) ·
 `python eval/run_grade.py`(LLM grading). 상세는 [`docs/PROGRESS.md`](docs/PROGRESS.md).
