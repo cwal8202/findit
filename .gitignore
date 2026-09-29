@@ -15,3 +15,7 @@ __pycache__/
 # 런타임 상태(분실물 DB 등) — 개인정보 포함, 커밋 금지
 data/*.db
 data/*.db-journal
+
+# 데이터랩 원본 방문자수(4.6MB) — eval/datalab/fetch_datalab.py로 재수집 가능, 원본 재배포는 하지 않음.
+# 집계 결과(analysis_*·found_*)와 차트는 커밋.
+eval/datalab/data/visitors_*.json

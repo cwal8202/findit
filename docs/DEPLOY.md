@@ -88,6 +88,9 @@ chmod +x scripts/daily_collect.sh
   임베딩은 새 항목에만** — 평소 하루 ~2,800건(~15분). 빈 날도 재매칭은 진행.
 - 로그 확인: `tail -50 /root/findit/daily_collect.log` (재매칭 대상·최고 grade·신규 매칭 건수가 찍힘)
 - 즉시 한 번 돌려보려면: `bash scripts/daily_collect.sh`
+- 수집은 **별도 일회성 컨테이너**(`docker compose run --rm backend …`)에서 실행 → 수집 중 자동배포가 백엔드를 재생성해도 끊기지 않음.
+  (예전 `exec` 방식은 새벽 배포에 수집이 중단돼 작업이 유실됨. 첫 7일 창 실행은 서버에서 ~4.5시간.)
+- 진행 확인: `docker ps | grep backend-run` (수집 컨테이너) · `tail -f /root/findit/daily_collect.log`
 
 ## 9. 자동배포 (GitHub Actions)
 `.github/workflows/deploy.yml` — **`main`에 push되면** GitHub Actions가 서버에 SSH 접속해 자동 재배포한다.

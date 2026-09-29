@@ -62,6 +62,8 @@
   결과창 **알림 설정**에서 이메일·**알림 기간(7~180일, 기본 30일 — 지나면 재매칭 중단)**·**약한 후보(grade 50~79) '참고' 알림** 옵트인을 변경
 - **매일 수집(cron 00:00 KST)**: 습득물은 며칠에 걸쳐 등록되므로 **최근 7일 창을 매일 재조회**, 이미 색인된 항목은 건너뛰고
   새 항목만 상세 조회·임베딩 → 색인 → 재매칭. (기존 '어제분'만 조회 시 새 데이터 99% 누락 → 수정, [PROGRESS](docs/PROGRESS.md) 참고)
+- **데이터랩 결합 분석**(`eval/datalab/`): 한국관광 데이터랩 외국인 방문자수 × 습득물 10.6만 건(2026.8) → 외국인 방문 상위 20개 시군구(8.7%)에
+  **외국인 방문 59.2%·습득물 38.1%** 집중, 분실 지역 ≠ 보관 지역(역·유실물센터 등 거점) 확인 → 경유 지역 확장 검색의 근거
 - **개인정보**: 공개 신고 목록은 문장·상태·최고 매칭명만 노출(이메일·신고 id 비노출). 신고 조작은 등록 시 받은 id를 가진 본인만.
 
 **✅ 검색 품질 실측 (eval, 골든셋 29문항)**
@@ -96,7 +98,7 @@ Docker Compose · **Caddy(자동 HTTPS)** · **GitHub Actions(자동배포)** ·
 ## 레포 구조
 
 ```
-eval/        골든셋 + 성능 실험 (BM25/임베딩/하이브리드/스윕, OpenSearch 색인·검색·데모)
+eval/        골든셋 + 성능 실험 (BM25/임베딩/하이브리드/스윕, OpenSearch 색인·검색·데모) + datalab/(데이터랩 결합 분석)
 infra/       로컬 docker-compose + OpenSearch(nori) Dockerfile + 인덱스 매핑 + Caddyfile(프로덕션 HTTPS)
 fixtures/    공공 API 실응답 샘플 (진실의 원천)
 scripts/     daily_collect.sh(cron 일일 수집) · region 백필/지오코딩
@@ -139,6 +141,14 @@ uv run python -m apps.collector.run --source both --start 20260901 --end 2026090
 
 **성능 실험(eval)**: `python eval/run_os.py`(OpenSearch 실측) · `python eval/run_boost.py`(지역 가점) ·
 `python eval/run_grade.py`(LLM grading). 상세는 [`docs/PROGRESS.md`](docs/PROGRESS.md).
+
+**데이터랩 결합 분석**(공공데이터포털 `한국관광공사_빅데이터_지역별 방문자수` 활용신청 필요):
+```bash
+uv run python -m eval.datalab.fetch_datalab --start 20260801 --end 20260830   # 데이터랩 방문자수
+uv run python -m eval.datalab.fetch_found   --start 20260801 --end 20260830   # 같은 기간 습득물 시군구 집계
+uv run python -m eval.datalab.analyze --period 20260801_20260830              # 결합 분석 → data/analysis_*
+uv run --with matplotlib python -m eval.datalab.charts --period 20260801_20260830  # 차트 → figures/
+```
 
 > Windows에서 콘솔 한글/이모지 깨짐 방지: `PYTHONUTF8=1` 권장.
 

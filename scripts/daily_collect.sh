@@ -17,7 +17,9 @@ END=$(date -d 'yesterday' +%Y%m%d)
 echo "==== [$(date '+%F %T')] 최근 ${DAYS}일($START~$END) 수집 시작 ===="
 
 # --max: 소스별 목록 상한(하루 ~1,700건/소스 × 7일 여유). 상세·임베딩은 새 항목에만 쓰임.
-docker compose -f docker-compose.prod.yml exec -T backend \
+# run --rm: 백엔드 서비스 컨테이너(exec)가 아니라 별도 일회성 컨테이너에서 실행 → 수집 도중 자동배포가
+# 백엔드를 재생성해도 끊기지 않음(2026-09-30: exec 방식이 01:24 배포로 중단돼 1시간 반 작업 유실).
+docker compose -f docker-compose.prod.yml run --rm -T backend \
   uv run python -m apps.collector.run \
     --source both --start "$START" --end "$END" \
     --rows 1000 --max 20000 --enrich --rematch
