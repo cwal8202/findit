@@ -1,13 +1,16 @@
-"""수집기 CLI — data.go.kr 목록 페이징 → 상세 enrich → 임베딩 → OpenSearch 색인(upsert).
+"""수집기 CLI — data.go.kr 목록 페이징 → (새 항목만) 상세 enrich → 임베딩 → OpenSearch 색인(upsert).
 
 스케줄과 무관한 멱등 명령. 언제 돌릴지는 외부 스케줄러(cron/작업 스케줄러/클라우드)가 결정.
 문서 _id = atcId_fdSn 라 재실행은 upsert(중복 없음).
 
+습득물은 습득일 이후 며칠에 걸쳐 등록됨(실측: 자정에 '어제분' 조회 시 5건 → 하루 뒤 ~2,800건).
+그래서 매일 **최근 N일 창을 다시 조회**하고, 이미 색인된 항목은 건너뛰어 상세 조회·임베딩 비용은 새 항목에만 씀.
+
 예:
   # 검증(임베딩·색인 없이 몇 건만 확인)
   uv run python -m apps.collector.run --source police --start 20260831 --end 20260831 --max 5 --dry-run
-  # 실제 색인(상세 enrich + 임베딩)
-  uv run python -m apps.collector.run --source both --start 20260901 --end 20260901 --max 200 --enrich
+  # 실제 색인(상세 enrich + 임베딩, 이미 색인된 건 스킵)
+  uv run python -m apps.collector.run --source both --start 20260901 --end 20260907 --max 20000 --enrich
 """
 
 from __future__ import annotations
@@ -21,49 +24,87 @@ from apps.api import gemini
 from apps.api.config import settings
 from apps.api.region import resolver as region_resolver
 from apps.collector import client
-from apps.collector.normalize import doc_id, embed_text, normalize
+from apps.collector.normalize import doc_id, embed_text, list_id, normalize
 
 
-def fetch(source: str, start: str, end: str, rows: int, max_items: int, enrich: bool) -> list[dict]:
-    docs: list[dict] = []
+def list_items(source: str, start: str, end: str, rows: int, max_items: int) -> list[dict]:
+    """목록만 페이징(상세 X) — 가벼움. 최대 max_items건."""
+    items: list[dict] = []
     page = 1
-    while len(docs) < max_items:
-        res = client.get_list(source, start, end, page=page, rows=min(rows, max_items - len(docs)))
+    while len(items) < max_items:
+        res = client.get_list(source, start, end, page=page, rows=min(rows, max_items - len(items)))
         if res["code"] not in ("00", ""):
             print(f"  ⚠ {source} 목록 응답: {res['code']} {res['msg']}")
             break
-        items = res["items"]
-        if not items:
+        if not res["items"]:
             break
-        for li in items:
-            detail = {}
-            if enrich:
-                try:
-                    detail = client.get_detail(source, li["atcId"], li["fdSn"])
-                except Exception as e:  # noqa: BLE001
-                    print(f"  ! 상세 실패 {li.get('atcId')}: {e}")
-                time.sleep(0.1)  # 상세는 항목당 1콜 — 예의상 간격
-            docs.append(normalize(source, li, detail))
-        print(f"  {source} p{page}: 누적 {len(docs)}/{min(max_items, res['total'])} (total {res['total']})")
-        if len(docs) >= res["total"]:
+        items += res["items"]
+        print(f"  {source} p{page}: 목록 {len(items)}/{min(max_items, res['total'])} (total {res['total']})")
+        if len(items) >= res["total"]:
             break
         page += 1
-    return docs[:max_items]
+    return items[:max_items]
 
 
-def bulk_index(docs: list[dict]) -> dict:
-    lines = []
-    for d in docs:
-        lines.append(json.dumps({"index": {"_index": settings.opensearch_index, "_id": doc_id(d)}}))
-        lines.append(json.dumps(d, ensure_ascii=False))
-    body = ("\n".join(lines) + "\n").encode("utf-8")
-    req = urllib.request.Request(
-        f"{settings.opensearch_url}/_bulk", body, {"Content-Type": "application/x-ndjson"}
-    )
-    with urllib.request.urlopen(req, timeout=120) as r:
-        res = json.load(r)
-    errors = [i for i in res.get("items", []) if i.get("index", {}).get("status", 200) >= 300]
-    return {"took": res.get("took"), "errors": len(errors), "count": len(docs)}
+def existing_ids(ids: list[str], chunk: int = 1000) -> set[str]:
+    """이미 색인된 문서 id 집합(OpenSearch _mget, 본문 제외)."""
+    found: set[str] = set()
+    for i in range(0, len(ids), chunk):
+        body = json.dumps({"ids": ids[i : i + chunk]}).encode()
+        req = urllib.request.Request(
+            f"{settings.opensearch_url}/{settings.opensearch_index}/_mget?_source=false",
+            body, {"Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(req, timeout=60) as r:
+            found |= {d["_id"] for d in json.load(r).get("docs", []) if d.get("found")}
+    return found
+
+
+def enrich_docs(source: str, items: list[dict], enrich: bool) -> list[dict]:
+    """목록 항목 → (선택) 상세 조회 → 정규화 문서. 상세는 항목당 1콜이라 새 항목에만 호출."""
+    docs: list[dict] = []
+    for n, li in enumerate(items, 1):
+        detail = {}
+        if enrich:
+            try:
+                detail = client.get_detail(source, li["atcId"], li["fdSn"])
+            except Exception as e:  # noqa: BLE001
+                print(f"  ! 상세 실패 {li.get('atcId')}: {e}")
+            time.sleep(0.1)  # 상세는 항목당 1콜 — 예의상 간격
+        docs.append(normalize(source, li, detail))
+        if enrich and n % 500 == 0:
+            print(f"  {source} 상세 {n}/{len(items)}", flush=True)
+    return docs
+
+
+def fetch(source: str, start: str, end: str, rows: int, max_items: int, enrich: bool,
+          skip_existing: bool = False) -> list[dict]:
+    items = list_items(source, start, end, rows, max_items)
+    if skip_existing and items:
+        have = existing_ids([list_id(li) for li in items])
+        new = [li for li in items if list_id(li) not in have]
+        print(f"  {source}: 목록 {len(items)}건 중 이미 색인 {len(items) - len(new)}건 → 새 항목 {len(new)}건만 처리")
+        items = new
+    return enrich_docs(source, items, enrich)
+
+
+def bulk_index(docs: list[dict], chunk: int = 500) -> dict:
+    """_bulk upsert를 chunk건씩 — 벡터 포함 문서 수만 건을 한 요청에 담으면 100MB 한도 초과."""
+    took = errors = 0
+    for i in range(0, len(docs), chunk):
+        lines = []
+        for d in docs[i : i + chunk]:
+            lines.append(json.dumps({"index": {"_index": settings.opensearch_index, "_id": doc_id(d)}}))
+            lines.append(json.dumps(d, ensure_ascii=False))
+        body = ("\n".join(lines) + "\n").encode("utf-8")
+        req = urllib.request.Request(
+            f"{settings.opensearch_url}/_bulk", body, {"Content-Type": "application/x-ndjson"}
+        )
+        with urllib.request.urlopen(req, timeout=120) as r:
+            res = json.load(r)
+        took += res.get("took") or 0
+        errors += sum(1 for it in res.get("items", []) if it.get("index", {}).get("status", 200) >= 300)
+    return {"took": took, "errors": errors, "count": len(docs)}
 
 
 def main() -> None:
@@ -77,13 +118,17 @@ def main() -> None:
     ap.add_argument("--no-embed", action="store_true", help="임베딩·색인 생략(정규화까지만)")
     ap.add_argument("--dry-run", action="store_true", help="색인 안 함, 샘플만 출력")
     ap.add_argument("--rematch", action="store_true", help="색인 후 open 분실물 지속 재매칭 실행")
+    ap.add_argument("--refresh-existing", action="store_true",
+                    help="이미 색인된 항목도 다시 상세 조회·임베딩(기본: 새 항목만)")
     args = ap.parse_args()
 
+    indexing = not (args.dry_run or args.no_embed)
     sources = ["police", "portal"] if args.source == "both" else [args.source]
     all_docs: list[dict] = []
     for src in sources:
         print(f"[{src}] 수집 {args.start}~{args.end} (max {args.max}, enrich={args.enrich})")
-        all_docs += fetch(src, args.start, args.end, args.rows, args.max, args.enrich)
+        all_docs += fetch(src, args.start, args.end, args.rows, args.max, args.enrich,
+                          skip_existing=indexing and not args.refresh_existing)
 
     for d in all_docs:  # 구/시 해석해 색인에 저장(둘러보기 지역 필터·집계용, 비용 0)
         d["region"] = region_resolver.resolve(d.get("dep_place", ""))
@@ -94,20 +139,23 @@ def main() -> None:
         print(f"  샘플: {d['name']} / {d['color']} / {d['category']} / 보관:{d['dep_place']} / "
               f"습득장소:{d['found_place'] or '-'} / 특이:{(d['description'] or '-')[:30]}")
 
-    if args.dry_run or args.no_embed:
+    if not indexing:
         print("(dry-run/no-embed — 임베딩·색인 생략)")
         return
 
-    print("임베딩(Gemini)...")
-    vecs = gemini.embed_texts([embed_text(d) for d in all_docs])
-    for d, v in zip(all_docs, vecs):
-        d["embedding"] = v
+    if all_docs:  # 새 항목 0건이면 색인 생략(빈 _bulk는 OpenSearch 400) — 재매칭은 그대로 진행
+        print("임베딩(Gemini)...")
+        vecs = gemini.embed_texts([embed_text(d) for d in all_docs])
+        for d, v in zip(all_docs, vecs):
+            d["embedding"] = v
 
-    print("OpenSearch 색인(_bulk upsert)...")
-    res = bulk_index(all_docs)
-    print(f"  완료: {res['count']}건 색인, 오류 {res['errors']}건 (took {res['took']}ms)")
-    urllib.request.urlopen(urllib.request.Request(  # 색인 즉시 반영
-        f"{settings.opensearch_url}/{settings.opensearch_index}/_refresh", method="POST"), timeout=15)
+        print("OpenSearch 색인(_bulk upsert)...")
+        res = bulk_index(all_docs)
+        print(f"  완료: {res['count']}건 색인, 오류 {res['errors']}건 (took {res['took']}ms)")
+        urllib.request.urlopen(urllib.request.Request(  # 색인 즉시 반영
+            f"{settings.opensearch_url}/{settings.opensearch_index}/_refresh", method="POST"), timeout=15)
+    else:
+        print("새 항목 없음 — 색인 생략")
     cnt = json.load(urllib.request.urlopen(
         f"{settings.opensearch_url}/{settings.opensearch_index}/_count", timeout=15))["count"]
     print(f"  현재 인덱스 총 문서: {cnt}")

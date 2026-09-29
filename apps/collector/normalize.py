@@ -38,3 +38,8 @@ def embed_text(doc: dict) -> str:
 
 def doc_id(doc: dict) -> str:
     return f"{doc['atc_id']}_{doc['fd_sn']}"
+
+
+def list_id(li: dict) -> str:
+    """목록 항목(원본 필드)의 문서 id — normalize 후 doc_id와 동일."""
+    return f"{li.get('atcId', '')}_{li.get('fdSn', '1')}"

@@ -75,13 +75,18 @@ ufw allow 22 && ufw allow 80 && ufw allow 443 && ufw --force enable   # ufw 쓸 
 ```
 
 ## 8. 최신 데이터 유지 — 매일 자동 수집 (cron)
-`scripts/daily_collect.sh`가 "어제분" 습득물을 수집·색인·재매칭한다. cron에 등록:
+`scripts/daily_collect.sh`가 **최근 7일** 습득물을 다시 조회해 새 항목만 수집·색인하고, 이어서 재매칭한다. cron에 등록:
 ```bash
+timedatectl set-timezone Asia/Seoul     # 서버 시각을 KST로(현재 운영 서버는 KST)
 chmod +x scripts/daily_collect.sh
-(crontab -l 2>/dev/null; echo "0 5 * * * /root/findit/scripts/daily_collect.sh >> /root/findit/daily_collect.log 2>&1") | crontab -
+(crontab -l 2>/dev/null; echo "0 0 * * * /root/findit/scripts/daily_collect.sh >> /root/findit/daily_collect.log 2>&1") | crontab -
 ```
-- 매일 05:00(서버 시각) 실행 → 어제분 `--enrich --rematch`(신규 습득물 유입 시 open 신고 자동 재매칭 → 알림).
-- 비용: data.go.kr 상세는 항목당 1콜(일 10만 한도), 임베딩도 건당 비용 → 스크립트의 `--max 2000`으로 규모 조절.
+- 매일 00:00(KST) 실행 → 최근 7일 창 `--enrich --rematch`.
+- **왜 7일 창인가**: 습득물은 습득일 이후 며칠에 걸쳐 등록된다. '어제분'만 자정에 조회하면 5건 안팎만 잡히고
+  (하루 뒤엔 같은 날짜가 ~2,800건) 새 데이터 99%를 놓친다. 창은 `COLLECT_DAYS` 환경변수로 변경 가능.
+- **비용**: 목록 조회는 가벼움(7일치 ~1만8천 건 ≈ 1분). 이미 색인된 항목은 `_mget`으로 걸러 **상세 조회(항목당 1콜, 일 10만 한도)와
+  임베딩은 새 항목에만** — 평소 하루 ~2,800건(~15분). 빈 날도 재매칭은 진행.
+- 로그 확인: `tail -50 /root/findit/daily_collect.log` (재매칭 대상·최고 grade·신규 매칭 건수가 찍힘)
 - 즉시 한 번 돌려보려면: `bash scripts/daily_collect.sh`
 
 ## 9. 자동배포 (GitHub Actions)
