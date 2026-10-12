@@ -29,7 +29,14 @@ def _s(v) -> str:
 
 def extract(text: str, lost_date: str | None = None) -> dict:
     res = gemini.generate_json(_PROMPT.format(text=text, today=_today()))
-    res = res if isinstance(res, dict) else {}
+    if not isinstance(res, dict):  # LLM 장애·이상 응답 → 신고 문장 자체로 검색(멈추지 않고 품질만 낮춤)
+        out = {k: "" for k in _FIELDS}
+        out["item"] = _s(text)
+        out["is_lost_report"] = True
+        out["degraded"] = True
+        if lost_date:
+            out["lost_date"] = lost_date
+        return out
     out = {k: _s(res.get(k)) for k in _FIELDS}
     out["is_lost_report"] = bool(res.get("is_lost_report", True))  # 분실물 신고 아니면 false(검색 스킵)
     if lost_date:  # 사용자가 명시했으면 우선

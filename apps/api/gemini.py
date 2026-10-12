@@ -49,7 +49,7 @@ def _post(url: str, body: dict, timeout: int = 60, max_retry: int = 3) -> dict:
                 time.sleep(min(30, 5 * (attempt + 1)))  # 5,10,...,30s
                 continue
             raise
-        except (urllib.error.URLError, TimeoutError):
+        except OSError:  # URLError·타임아웃·연결 끊김(HTTPError는 위에서 처리)
             if attempt < max_retry - 1:
                 time.sleep(5)
                 continue
@@ -82,7 +82,7 @@ def generate_json(prompt: str, timeout: int = 60):
     try:
         text = _post(url, body, timeout)["candidates"][0]["content"]["parts"][0]["text"]
         return json.loads(text)
-    except (KeyError, IndexError, json.JSONDecodeError, urllib.error.URLError):
+    except (KeyError, IndexError, json.JSONDecodeError, OSError, RuntimeError):
         return None
 
 
@@ -99,7 +99,7 @@ def generate_json_image(prompt: str, image_b64: str, mime: str = "image/jpeg", t
     try:
         text = _post(url, body, timeout)["candidates"][0]["content"]["parts"][0]["text"]
         return json.loads(text)
-    except (KeyError, IndexError, json.JSONDecodeError, urllib.error.URLError):
+    except (KeyError, IndexError, json.JSONDecodeError, OSError, RuntimeError):
         return None
 
 
@@ -129,7 +129,7 @@ def compare_images(user_b64: str, cand_b64: str, user_mime: str = "image/jpeg",
         text = _post(url, body, timeout=60)["candidates"][0]["content"]["parts"][0]["text"]
         r = json.loads(text)
         return {"score": int(r.get("score")), "reason": (r.get("reason") or "").strip()}
-    except (KeyError, IndexError, ValueError, TypeError, json.JSONDecodeError, urllib.error.URLError):
+    except (KeyError, IndexError, ValueError, TypeError, json.JSONDecodeError, OSError, RuntimeError):
         return None
 
 
@@ -229,7 +229,7 @@ def grade(query: str, candidates: list[dict], lang: str = "ko") -> list[dict]:
     try:
         text = _post(url, body)["candidates"][0]["content"]["parts"][0]["text"]
         return clean_grades(json.loads(text), len(candidates))
-    except (KeyError, IndexError, json.JSONDecodeError, urllib.error.URLError):
+    except (KeyError, IndexError, json.JSONDecodeError, OSError, RuntimeError):
         return []
 
 

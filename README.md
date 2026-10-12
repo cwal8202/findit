@@ -67,6 +67,9 @@
 - **보안·개인정보**: 신고마다 관리 토큰(등록 응답으로 1회, 서버엔 해시만) — 확인·제외·알림 설정은 토큰이 있어야 가능.
   공개 신고 목록 없음('내 신고'는 이 브라우저에서만). 알림 이메일은 **확인 링크를 눌러야** 활성화(남의 주소로 못 보냄).
   IP별 레이트리밋 + 하루 AI 사용량 상한, 사진·검색어 크기 상한.
+  [개인정보처리방침](https://findit-lost.duckdns.org/privacy)·[이용약관](https://findit-lost.duckdns.org/terms) — 사진 미저장,
+  신고는 알림 기간 종료 30일 뒤 자동 삭제, '내 신고'에서 즉시 삭제 가능.
+- **비용·장애 대비**: 재매칭은 상위 후보가 바뀐 신고만 LLM 판정. Gemini 장애 시 키워드(BM25) 검색으로 대체해 멈추지 않음.
 
 **✅ 검색 품질 실측 (eval, 골든셋 29문항)**
 
@@ -78,7 +81,7 @@
 → 의미 임베딩이 주력 랭커(한글↔영문·번역·오타 커버). **지역 가점**은 밀집 군집(검정지갑 193건 등)에서
 묻힌 정답을 MRR 0.084→0.857로 끌어올림(덧셈 소프트 w≈0.05, eval 검증). dep→구/시 gazetteer+지오코딩 커버 **95%**.
 
-**✅ 테스트**: `uv run pytest` — 핵심 로직 120개(fan-out·지역가점·지역 매칭·store 생애주기·정규화·notifier·약한 후보 알림·알림 기간·이메일 확인·수집기·실시간 스트림·다국어 메일·보안·레이트리밋·운영 점검·API), 외부서비스 불필요(목킹).
+**✅ 테스트**: `uv run pytest` — 핵심 로직 132개(fan-out·지역가점·지역 매칭·store 생애주기·정규화·notifier·약한 후보 알림·알림 기간·이메일 확인·수집기·실시간 스트림·다국어 메일·보안·레이트리밋·운영 점검·개인정보 삭제·장애 대비·API), 외부서비스 불필요(목킹).
 
 **⏳ 남은 것**: 카카오 알림톡(현재 이메일/콘솔 알림) · 브라우저 확장 · 인증(user_id) · React/Vercel 프론트 분리 · 이미지 임베딩(CLIP) 검색.
 
@@ -104,7 +107,7 @@ eval/        골든셋 + 성능 실험 (BM25/임베딩/하이브리드/스윕, O
 infra/       로컬 docker-compose + OpenSearch(nori) Dockerfile + 인덱스 매핑 + Caddyfile(프로덕션 HTTPS)
 fixtures/    공공 API 실응답 샘플 (진실의 원천)
 scripts/     daily_collect.sh(cron 일일 수집) · region 백필/지오코딩
-tests/       pytest 120개 (외부 서비스 목킹)
+tests/       pytest 132개 (외부 서비스 목킹)
 docs/        PROGRESS.md (설계·실험·결정 기록) · DEPLOY.md (배포·운영) · screenshots/
 apps/api/       FastAPI 엔드포인트 13개 (/found-items/search·/browse, /lost-items[+/image, /stream], /alerts·/confirm·/dismiss, /health, GET /)
 apps/agent/     매칭 에이전트 (LangGraph: extract→route→fanout→search→grade, 단계 스트림) + rematch(지속 재매칭·알림 기간)

@@ -57,6 +57,16 @@ def index() -> FileResponse:
                         headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
 
 
+@app.get("/privacy", include_in_schema=False)
+def privacy() -> FileResponse:
+    return FileResponse(_WEB / "privacy.html", headers={"Cache-Control": "no-cache"})
+
+
+@app.get("/terms", include_in_schema=False)
+def terms() -> FileResponse:
+    return FileResponse(_WEB / "terms.html", headers={"Cache-Control": "no-cache"})
+
+
 @app.get("/health")
 def health() -> dict:
     return {"status": "ok", "index": settings.opensearch_index, "os": settings.opensearch_url}
@@ -111,6 +121,7 @@ def _persist_and_respond(text: str, result: dict, email: str,
     - 메일에 실을 후보는 서버가 판정한 것만 저장(`matches`) — 클라이언트 데이터로 메일을 만들지 않음.
     - 이메일을 남기면 확인 메일만 보냄(double opt-in). 결과·알림 메일은 확인 후에.
     """
+    from apps.agent.graph import graded_keys
     from apps.agent.rematch import alert_level, slim_matches, watch_until_after
 
     raw_matches = result.get("matches", [])
@@ -130,6 +141,7 @@ def _persist_and_respond(text: str, result: dict, email: str,
         result.get("queries", []), top, best_grade, status=status, email="",
         notify_weak=notify_weak, watch_until=watch_until, lang=lang,
         token_hash=store.hash_token(token), matches=slim_matches(raw_matches),
+        graded_ids=graded_keys(raw_matches),  # 재매칭이 같은 후보를 다시 판정하지 않게
     )
     email_pending = False
     if email:
@@ -290,7 +302,7 @@ def _public_item(it: dict) -> dict:
     }
 
 
-_PRIVATE_FIELDS = ("email", "user_id", "token_hash", "verify_hash", "verify_expires")
+_PRIVATE_FIELDS = ("email", "user_id", "token_hash", "verify_hash", "verify_expires", "graded_ids")
 
 
 def _owned(lid: str, token: str | None) -> dict:
@@ -415,3 +427,11 @@ def dismiss_lost_item(lid: str, req: DismissRequest, x_report_token: str | None 
     _owned(lid, x_report_token)
     dismissed = store.dismiss(lid, req.atc_id)
     return {"ok": True, "status": "open", "dismissed": dismissed}
+
+
+@app.delete("/lost-items/{lid}")
+def delete_lost_item(lid: str, x_report_token: str | None = Header(None)) -> dict:
+    """신고 삭제(신고자 요청) — 신고 문장·이메일·후보 기록을 즉시 완전 삭제. 이후 알림도 끝."""
+    _owned(lid, x_report_token)
+    store.delete(lid)
+    return {"ok": True, "deleted": lid}

@@ -2,6 +2,7 @@
 
 수집기가 새 습득물을 색인한 뒤 호출(또는 스케줄러가 수집 후 실행).
 저장된 추출·지역집합·쿼리를 재사용 → LLM 추출/라우팅 재호출 없이 검색+grade만(저렴).
+상위 후보가 지난번 판정한 것과 같으면 grade도 생략(graded_ids) → 비용은 새 후보가 들어온 신고에만.
 임계 grade 이상이면 유력 후보 → status=candidate, 알림. 신고자가 옵트인했으면 약한 후보도 '참고' 알림.
 
 실행:  uv run python -m apps.agent.rematch
@@ -68,10 +69,18 @@ def can_email(row: dict) -> bool:
 
 
 def _rematch_one(row: dict, verbose: bool) -> dict | None:
+    seen = row.get("graded_ids")
     matches = graph.match_stored(
         row["text"], row["extracted"] or {}, row["region_set"] or [], row["queries"] or [],
-        lang=row.get("lang") or "ko",
+        lang=row.get("lang") or "ko", skip_keys=set(seen) if seen else None,
     )
+    if matches is None:  # 상위 후보가 지난번과 같음 → 판정·알림 생략(LLM 비용 0)
+        if verbose:
+            print(f"  · {row['id']} '{row['text'][:24]}' 새 후보 없음 → 판정 생략")
+        return None
+    new_keys = graph.graded_keys(matches)
+    if new_keys:  # 판정이 실패(Gemini 장애)했으면 기록하지 않음 → 다음 재매칭에서 다시 판정
+        store.set_graded(row["id"], list(dict.fromkeys((seen or []) + new_keys)))
     dismissed = set(row.get("dismissed") or [])  # '아니에요' 한 후보 제외
     matches = [m for m in matches if m.get("atc_id") not in dismissed]
     top = matches[0] if matches else None
@@ -93,8 +102,26 @@ def _rematch_one(row: dict, verbose: bool) -> dict | None:
     return None
 
 
+def purge_old(now: datetime | None = None, verbose: bool = True) -> int:
+    """보유 기간 경과 신고 삭제 — 알림 기간 종료 + retention_days가 지난 신고(상태 무관).
+
+    개인정보처리방침의 보유 기간을 코드로 지킨다. 신고자가 기간을 늘리면 삭제도 그만큼 늦어짐.
+    """
+    now = now or datetime.now(timezone.utc)
+    grace = timedelta(days=settings.retention_days)
+    n = 0
+    for row in store.all_items():
+        if watch_deadline(row) + grace < now:
+            store.delete(row["id"])
+            n += 1
+    if verbose and n:
+        print(f"보유 기간 경과 신고 {n}건 삭제")
+    return n
+
+
 def rematch_open(verbose: bool = True) -> list[dict]:
     store.init()
+    purge_old(verbose=verbose)
     opens = store.list_open()
     if verbose:
         print(f"재매칭 대상(open): {len(opens)}건 / 임계 grade {settings.rematch_grade_threshold}"

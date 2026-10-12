@@ -163,6 +163,11 @@ main push → [test] pytest 통과 → [deploy] git pull --ff-only → docker co
 - **요청 본문 상한**: Caddy `request_body max_size 10MB`.
 - **이메일**: 확인(double opt-in)된 주소에만 알림. 확인 링크는 `PUBLIC_BASE_URL` 기준(기본 라이브 도메인).
 
+## 개인정보·로그
+- **보유 기간**: 알림 기간 종료 + `RETENTION_DAYS`(기본 30)일이 지난 신고는 매일 재매칭 전에 자동 삭제.
+  `/privacy`(개인정보처리방침)에 같은 기간을 적어 두었으니 값을 바꾸면 **방침 문구도 같이** 고칠 것.
+- **컨테이너 로그**: backend·caddy·postgres는 10MB × 3개로 회전(`x-logging`). 백엔드 로그엔 내부 프록시 IP만 남는다.
+
 ## 이후 강화(선택)
 - **React/Vercel 프론트 분리**: 분리 시 FastAPI에 CORS 허용 오리진 추가.
 - **관측성**: 에러 추적(Sentry 등)·외부 헬스 체크, 백업 외부 복제.

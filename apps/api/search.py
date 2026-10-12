@@ -141,11 +141,16 @@ def search(
     w_time: float = 0.0,
 ) -> list[dict]:
     region_set = region_set or []
-    qv = gemini.embed_query(q)
+    try:
+        qv = gemini.embed_query(q)
+        query = {"knn": {"embedding": {"vector": qv, "k": candidates}}}
+    except Exception as e:  # noqa: BLE001 — 임베딩(Gemini) 장애 시 키워드(BM25) 검색으로 대체해 서비스 유지
+        print(f"[search] 임베딩 실패({type(e).__name__}) → 키워드 검색으로 대체")
+        query = {"multi_match": {"query": q, "fields": ["name^2", "subject", "description", "category"]}}
 
     hits = _os_search({
         "size": candidates,
-        "query": {"knn": {"embedding": {"vector": qv, "k": candidates}}},
+        "query": query,
         "_source": {"excludes": ["embedding"]},
     })
 

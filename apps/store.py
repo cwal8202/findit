@@ -28,7 +28,7 @@ else:
 
     from apps.api.config import settings
 
-_JSON_COLS = ("extracted", "region_set", "queries", "best_match", "dismissed", "weak_notified", "matches")
+_JSON_COLS = ("extracted", "region_set", "queries", "best_match", "dismissed", "weak_notified", "matches", "graded_ids")
 
 
 def _now() -> str:
@@ -113,6 +113,7 @@ def init() -> None:
             verify_hash TEXT,
             verify_expires TEXT,
             matches TEXT,
+            graded_ids TEXT,
             created_at TEXT,
             matched_at TEXT
         )
@@ -121,7 +122,7 @@ def init() -> None:
     added = {"email": "TEXT", "dismissed": "TEXT", "notify_weak": "INTEGER DEFAULT 0",
              "weak_notified": "TEXT", "watch_until": "TEXT", "lang": "TEXT DEFAULT 'ko'",
              "token_hash": "TEXT", "email_verified": "INTEGER DEFAULT 0", "verify_hash": "TEXT",
-             "verify_expires": "TEXT", "matches": "TEXT"}
+             "verify_expires": "TEXT", "matches": "TEXT", "graded_ids": "TEXT"}
     if _PG:
         for col, typ in added.items():
             _run(f"ALTER TABLE lost_items ADD COLUMN IF NOT EXISTS {col} {typ}")
@@ -149,18 +150,20 @@ def add(text: str, extracted: dict, region_set: list, queries: list,
         best_match: dict | None, best_grade: int | None,
         status: str = "open", user_id: str = "anon", email: str = "",
         notify_weak: bool = False, watch_until: str | None = None, lang: str = "ko",
-        token_hash: str | None = None, matches: list | None = None) -> str:
+        token_hash: str | None = None, matches: list | None = None,
+        graded_ids: list | None = None) -> str:
     """신고 저장. email은 확인 전(email_verified=0) 상태로 저장 — 확인돼야 알림이 감."""
     lid = new_id()
     _run(
         "INSERT INTO lost_items (id,user_id,email,text,extracted,region_set,queries,"
         "status,best_match,best_grade,notify_weak,watch_until,lang,token_hash,email_verified,matches,"
-        "created_at,matched_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        "graded_ids,created_at,matched_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         (lid, user_id, email, text, json.dumps(extracted, ensure_ascii=False),
          json.dumps(region_set, ensure_ascii=False), json.dumps(queries, ensure_ascii=False),
          status, json.dumps(best_match, ensure_ascii=False) if best_match else None,
          best_grade, int(notify_weak), watch_until, lang or "ko", token_hash, 0,
          json.dumps(matches or [], ensure_ascii=False),
+         json.dumps(graded_ids, ensure_ascii=False) if graded_ids else None,
          _now(), _now() if status in ("candidate", "confirmed") else None),
     )
     return lid
@@ -210,6 +213,15 @@ def set_matches(lid: str, matches: list) -> None:
     _run("UPDATE lost_items SET matches=? WHERE id=?", (json.dumps(matches, ensure_ascii=False), lid))
 
 
+def set_graded(lid: str, keys: list[str] | None) -> None:
+    """재매칭에서 LLM 판정을 마친 후보 키(atc_id_fd_sn). None이면 초기화 → 다음 재매칭은 무조건 다시 판정.
+
+    신고자가 설정을 바꾸면(약한 후보 옵트인·이메일 확인·'아니에요') 같은 후보라도 알림 판단이 달라지므로 초기화한다.
+    """
+    _run("UPDATE lost_items SET graded_ids=? WHERE id=?",
+         (json.dumps(keys[-500:], ensure_ascii=False) if keys else None, lid))
+
+
 def set_pending_email(lid: str, email: str, verify_hash: str | None, verify_expires: str | None) -> None:
     """새 이메일 등록 → 확인 전 상태. 빈 문자열이면 알림 이메일 해제."""
     _run("UPDATE lost_items SET email=?, email_verified=0, verify_hash=?, verify_expires=? WHERE id=?",
@@ -225,7 +237,7 @@ def verify_email(token: str) -> dict | None:
         return None
     if row.get("verify_expires") and row["verify_expires"] < _now():
         return None
-    _run("UPDATE lost_items SET email_verified=1, verify_hash=NULL, verify_expires=NULL WHERE id=?",
+    _run("UPDATE lost_items SET email_verified=1, verify_hash=NULL, verify_expires=NULL, graded_ids=NULL WHERE id=?",
          (row["id"],))
     return get(row["id"])
 
@@ -233,11 +245,16 @@ def verify_email(token: str) -> dict | None:
 def update_alerts(lid: str, notify_weak: bool, watch_until: str, status: str | None = None) -> None:
     """결과창 '알림 설정' 저장 — 약한 후보 옵트인·알림 기간(+만료 신고 재개 시 status). 이메일은 별도(확인 절차)."""
     if status is None:
-        _run("UPDATE lost_items SET notify_weak=?, watch_until=? WHERE id=?",
+        _run("UPDATE lost_items SET notify_weak=?, watch_until=?, graded_ids=NULL WHERE id=?",
              (int(notify_weak), watch_until, lid))
     else:
-        _run("UPDATE lost_items SET notify_weak=?, watch_until=?, status=? WHERE id=?",
+        _run("UPDATE lost_items SET notify_weak=?, watch_until=?, status=?, graded_ids=NULL WHERE id=?",
              (int(notify_weak), watch_until, status, lid))
+
+
+def delete(lid: str) -> None:
+    """신고 완전 삭제(신고자 요청 또는 보유 기간 경과)."""
+    _run("DELETE FROM lost_items WHERE id=?", (lid,))
 
 
 def set_status(lid: str, status: str) -> None:
@@ -269,6 +286,6 @@ def dismiss(lid: str, atc_id: str) -> list[str]:
     dis = (row.get("dismissed") if row else None) or []
     if atc_id and atc_id not in dis:
         dis.append(atc_id)
-    _run("UPDATE lost_items SET status='open', dismissed=? WHERE id=?",
+    _run("UPDATE lost_items SET status='open', dismissed=?, graded_ids=NULL WHERE id=?",
          (json.dumps(dis, ensure_ascii=False), lid))
     return dis

@@ -46,7 +46,8 @@ def test_extract_survives_malformed_llm_output(monkeypatch):
     out = extract_mod.extract("지갑")
     assert out["item"] == "지갑, 카드지갑" and out["brand"] == "" and out["color"] == "3"
     monkeypatch.setattr(gemini, "generate_json", lambda p, **k: ["not", "a", "dict"])
-    assert extract_mod.extract("지갑")["item"] == ""
+    out = extract_mod.extract("지갑")  # 이상 응답 → 신고 문장 자체로 검색(장애 대비 폴백)
+    assert out["item"] == "지갑" and out["degraded"]
 
 
 def test_clean_grades_filters_bad_items():

@@ -2,6 +2,13 @@
 # 실행:  docker compose -f docker-compose.prod.yml up -d --build
 # 접속:  http://<서버IP>   (백엔드 80 → 8000)
 # 시크릿: 같은 폴더 .env (.env.example 참고). OpenSearch는 외부에 포트 노출 안 함(내부 전용).
+# 컨테이너 로그 상한(기본 json-file은 무제한 → 디스크가 찰 수 있음). 10MB × 3개 회전.
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   opensearch:
     build: ./infra/opensearch
@@ -27,6 +34,7 @@ services:
   postgres:
     image: postgres:16-alpine
     container_name: findit-postgres
+    logging: *logging
     environment:
       - POSTGRES_USER=findit
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-findit_pw}
@@ -44,6 +52,7 @@ services:
     build: .
     image: findit/backend:latest
     container_name: findit-backend
+    logging: *logging
     env_file: .env                         # Gemini·SMTP·data.go.kr·Kakao 키
     environment:
       - OPENSEARCH_URL=http://opensearch:9200   # 컨테이너 내부 DNS(로컬호스트 아님)
@@ -60,6 +69,7 @@ services:
   caddy:
     image: caddy:2-alpine
     container_name: findit-caddy
+    logging: *logging
     environment:
       - DOMAIN=${DOMAIN:-}                  # .env 의 DuckDNS 도메인. 없으면 http(:80)만.
     ports:

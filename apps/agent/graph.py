@@ -45,6 +45,16 @@ def n_fanout(state: AgentState) -> dict:
     return {"queries": fanout.build_queries(state["extracted"])}
 
 
+def cand_key(it: dict) -> str:
+    """습득물 후보 식별 키(atc_id_fd_sn)."""
+    return f"{it.get('atc_id')}_{it.get('fd_sn')}"
+
+
+def graded_keys(matches: list[dict]) -> list[str]:
+    """실제로 LLM 판정이 붙은 후보 키 — 판정이 실패(전부 None)했으면 빈 목록(다음에 다시 판정)."""
+    return [cand_key(m) for m in matches if m.get("grade") is not None]
+
+
 def n_search(state: AgentState) -> dict:
     ex = state["extracted"]
     region_set = state.get("region_set") or []
@@ -55,7 +65,7 @@ def n_search(state: AgentState) -> dict:
             q, region_set=region_set, lost_date=lost_date, do_grade=False,
             size=SEARCH_PER_QUERY, candidates=100,
         ):
-            key = f"{it['atc_id']}_{it['fd_sn']}"
+            key = cand_key(it)
             if key not in merged or it["score"] > merged[key]["score"]:
                 merged[key] = it
     cands = sorted(merged.values(), key=lambda x: -x["score"])[:MERGED_TOPK]
@@ -198,11 +208,16 @@ def run_image(image_b64: str, mime: str = "image/jpeg",
 
 
 def match_stored(text: str, extracted: dict, region_set: list, queries: list,
-                 lang: str = "ko") -> list[dict]:
+                 lang: str = "ko", skip_keys: set[str] | None = None) -> list[dict] | None:
     """저장된 분실물 재매칭 — 추출·라우팅 생략(이미 있음), 검색+grade만.
-    지속 재매칭이 open 항목마다 호출(LLM 추출/라우팅 재호출 없이 저렴). 판정 근거는 신고자 언어(lang)로."""
+    지속 재매칭이 open 항목마다 호출(LLM 추출/라우팅 재호출 없이 저렴). 판정 근거는 신고자 언어(lang)로.
+
+    skip_keys: 지난번에 이미 판정한 후보 키. 이번 검색 후보가 전부 그 안에 있으면(새 습득물이 상위에 없음)
+    판정할 새 정보가 없으므로 LLM 판정을 건너뛰고 None 반환 — 재매칭 비용이 '새 후보가 들어온 신고' 수에만 비례."""
     state: AgentState = {"text": text, "extracted": extracted,
                          "region_set": region_set, "queries": queries, "lang": lang}
     state.update(n_search(state))
+    if skip_keys is not None and all(cand_key(c) in skip_keys for c in state.get("candidates") or []):
+        return None
     state.update(n_grade(state))
     return state.get("matches", [])
