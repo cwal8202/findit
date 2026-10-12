@@ -40,7 +40,7 @@ def test_fetch_without_skip_keeps_all(monkeypatch):
 def test_main_with_no_new_items_skips_index_but_rematches(monkeypatch):
     monkeypatch.setattr(sys, "argv", ["run", "--source", "both", "--start", "20260901",
                                       "--end", "20260907", "--enrich", "--rematch"])
-    monkeypatch.setattr(run, "fetch", lambda *a, **k: [])
+    monkeypatch.setattr(run, "new_items", lambda *a, **k: [])
     monkeypatch.setattr(run, "bulk_index", lambda docs: (_ for _ in ()).throw(AssertionError("빈 bulk 금지")))
     monkeypatch.setattr(run.urllib.request, "urlopen", lambda *a, **k: io.BytesIO(b'{"count": 5985}'))
     called = []
@@ -63,3 +63,22 @@ def test_bulk_index_splits_into_chunks(monkeypatch):
     docs = [{"atc_id": str(i), "fd_sn": "1"} for i in range(1200)]
     res = run.bulk_index(docs, chunk=500)
     assert sizes == [500, 500, 200] and res == {"took": 3, "errors": 0, "count": 1200}
+
+
+def test_main_indexes_in_batches_so_failure_keeps_earlier_work(monkeypatch):
+    """배치마다 상세→임베딩→색인 — 중간 실패해도 앞 배치는 이미 색인(예전엔 끝에 한 번에 색인해 전부 유실)."""
+    monkeypatch.setattr(sys, "argv", ["run", "--source", "police", "--start", "20260901", "--end", "20260907"])
+    monkeypatch.setattr(run, "new_items", lambda *a, **k: [_li(str(i)) for i in range(1200)])
+    monkeypatch.setattr(run, "BATCH", 500)
+    indexed = []
+
+    def embed_and_index(docs):
+        if len(indexed) == 2:
+            raise RuntimeError("gemini down")      # 세 번째 배치에서 실패
+        indexed.append(len(docs))
+        return {"count": len(docs), "errors": 0, "took": 1}
+    monkeypatch.setattr(run, "embed_and_index", embed_and_index)
+    import pytest
+    with pytest.raises(RuntimeError):
+        run.main()
+    assert indexed == [500, 500]                     # 앞 두 배치(1,000건)는 이미 저장됨

@@ -1,15 +1,16 @@
 #!/usr/bin/env bash
-# 매일 "최근 N일" 습득물 수집 + 재매칭 (cron에서 호출). 심사 기간 최신 데이터 유지용.
+# 매일 "최근 N일" 습득물 수집 + 재매칭 (cron에서 호출). 실패·데이터 정체는 관리자에게 메일.
 #
 # 왜 '어제분'이 아니라 최근 N일인가: 습득물은 습득일 이후 며칠에 걸쳐 등록된다.
 #   실측(2026-09-29): 자정에 '어제분'을 조회하면 5건 → 하루 뒤 같은 날짜는 ~2,800건.
 #   그래서 매일 최근 N일 창을 다시 조회하고, 수집기가 이미 색인된 항목은 건너뛴다(상세·임베딩은 새 항목만).
+#   수집기는 500건마다 색인하므로 중간에 끊겨도 앞 배치는 남고, 다음 실행이 이어서 처리한다.
 #
 # 설치(서버, KST 자정):
 #   chmod +x scripts/daily_collect.sh
 #   (crontab -l 2>/dev/null; echo "0 0 * * * /root/findit/scripts/daily_collect.sh >> /root/findit/daily_collect.log 2>&1") | crontab -
-set -e
 cd "$(dirname "$0")/.."                 # repo 루트(findit/)
+COMPOSE="docker compose -f docker-compose.prod.yml"
 
 DAYS=${COLLECT_DAYS:-7}                 # 조회 창(일). 늦게 등록되는 습득물까지 잡도록 넉넉히.
 START=$(date -d "$DAYS days ago" +%Y%m%d)
@@ -19,9 +20,17 @@ echo "==== [$(date '+%F %T')] 최근 ${DAYS}일($START~$END) 수집 시작 ===="
 # --max: 소스별 목록 상한(하루 ~1,700건/소스 × 7일 여유). 상세·임베딩은 새 항목에만 쓰임.
 # run --rm: 백엔드 서비스 컨테이너(exec)가 아니라 별도 일회성 컨테이너에서 실행 → 수집 도중 자동배포가
 # 백엔드를 재생성해도 끊기지 않음(2026-09-30: exec 방식이 01:24 배포로 중단돼 1시간 반 작업 유실).
-docker compose -f docker-compose.prod.yml run --rm -T backend \
+if ! $COMPOSE run --rm -T backend \
   uv run python -m apps.collector.run \
     --source both --start "$START" --end "$END" \
-    --rows 1000 --max 20000 --enrich --rematch
+    --rows 1000 --max 20000 --enrich --rematch; then
+  echo "==== [$(date '+%F %T')] 수집 실패 ===="
+  $COMPOSE run --rm -T backend uv run python -m apps.ops alert "일일 수집 실패" \
+    "daily_collect.sh 실패 ($(date '+%F %T')). 로그: /root/findit/daily_collect.log" || true
+  exit 1
+fi
+
+# 수집은 성공했어도 새 데이터가 며칠째 없으면(공공 API 장애·쿼터 등) 알림
+$COMPOSE run --rm -T backend uv run python -m apps.ops freshness --max-age-days 3 || true
 
 echo "==== [$(date '+%F %T')] 수집 완료 ===="

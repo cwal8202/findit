@@ -77,15 +77,32 @@ def enrich_docs(source: str, items: list[dict], enrich: bool) -> list[dict]:
     return docs
 
 
-def fetch(source: str, start: str, end: str, rows: int, max_items: int, enrich: bool,
-          skip_existing: bool = False) -> list[dict]:
+BATCH = 500  # 상세 조회 → 임베딩 → 색인을 이 단위로 — 중간에 끊겨도 앞 배치는 남고, 재실행 시 스킵으로 이어감
+
+
+def new_items(source: str, start: str, end: str, rows: int, max_items: int,
+              skip_existing: bool = False) -> list[dict]:
+    """목록 조회 + (선택) 이미 색인된 항목 제외."""
     items = list_items(source, start, end, rows, max_items)
     if skip_existing and items:
         have = existing_ids([list_id(li) for li in items])
         new = [li for li in items if list_id(li) not in have]
         print(f"  {source}: 목록 {len(items)}건 중 이미 색인 {len(items) - len(new)}건 → 새 항목 {len(new)}건만 처리")
         items = new
-    return enrich_docs(source, items, enrich)
+    return items
+
+
+def fetch(source: str, start: str, end: str, rows: int, max_items: int, enrich: bool,
+          skip_existing: bool = False) -> list[dict]:
+    return enrich_docs(source, new_items(source, start, end, rows, max_items, skip_existing), enrich)
+
+
+def embed_and_index(docs: list[dict]) -> dict:
+    """한 배치 임베딩 → _bulk 색인."""
+    vecs = gemini.embed_texts([embed_text(d) for d in docs])
+    for d, v in zip(docs, vecs):
+        d["embedding"] = v
+    return bulk_index(docs)
 
 
 def bulk_index(docs: list[dict], chunk: int = 500) -> dict:
@@ -124,18 +141,27 @@ def main() -> None:
 
     indexing = not (args.dry_run or args.no_embed)
     sources = ["police", "portal"] if args.source == "both" else [args.source]
-    all_docs: list[dict] = []
+    total = indexed = errors = 0
+    sample = None
     for src in sources:
         print(f"[{src}] 수집 {args.start}~{args.end} (max {args.max}, enrich={args.enrich})")
-        all_docs += fetch(src, args.start, args.end, args.rows, args.max, args.enrich,
+        items = new_items(src, args.start, args.end, args.rows, args.max,
                           skip_existing=indexing and not args.refresh_existing)
+        for i in range(0, len(items), BATCH):  # 배치마다 상세 → (임베딩·색인) — 끊겨도 앞 배치는 보존
+            docs = enrich_docs(src, items[i : i + BATCH], args.enrich)
+            for d in docs:  # 구/시 해석해 색인에 저장(둘러보기 지역 필터·집계용, 비용 0)
+                d["region"] = region_resolver.resolve(d.get("dep_place", ""))
+            total += len(docs)
+            sample = sample or (docs[0] if docs else None)
+            if indexing and docs:
+                res = embed_and_index(docs)
+                indexed += res["count"]
+                errors += res["errors"]
+                print(f"  {src} 배치 {i // BATCH + 1}: {res['count']}건 색인 (누적 {indexed})", flush=True)
 
-    for d in all_docs:  # 구/시 해석해 색인에 저장(둘러보기 지역 필터·집계용, 비용 0)
-        d["region"] = region_resolver.resolve(d.get("dep_place", ""))
-
-    print(f"\n총 정규화 {len(all_docs)}건")
-    if all_docs:
-        d = all_docs[0]
+    print(f"\n총 정규화 {total}건")
+    if sample:
+        d = sample
         print(f"  샘플: {d['name']} / {d['color']} / {d['category']} / 보관:{d['dep_place']} / "
               f"습득장소:{d['found_place'] or '-'} / 특이:{(d['description'] or '-')[:30]}")
 
@@ -143,15 +169,8 @@ def main() -> None:
         print("(dry-run/no-embed — 임베딩·색인 생략)")
         return
 
-    if all_docs:  # 새 항목 0건이면 색인 생략(빈 _bulk는 OpenSearch 400) — 재매칭은 그대로 진행
-        print("임베딩(Gemini)...")
-        vecs = gemini.embed_texts([embed_text(d) for d in all_docs])
-        for d, v in zip(all_docs, vecs):
-            d["embedding"] = v
-
-        print("OpenSearch 색인(_bulk upsert)...")
-        res = bulk_index(all_docs)
-        print(f"  완료: {res['count']}건 색인, 오류 {res['errors']}건 (took {res['took']}ms)")
+    if indexed:  # 새 항목 0건이면 색인 생략(빈 _bulk는 OpenSearch 400) — 재매칭은 그대로 진행
+        print(f"  완료: {indexed}건 색인, 오류 {errors}건")
         urllib.request.urlopen(urllib.request.Request(  # 색인 즉시 반영
             f"{settings.opensearch_url}/{settings.opensearch_index}/_refresh", method="POST"), timeout=15)
     else:

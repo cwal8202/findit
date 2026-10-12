@@ -64,7 +64,9 @@
   새 항목만 상세 조회·임베딩 → 색인 → 재매칭. (기존 '어제분'만 조회 시 새 데이터 99% 누락 → 수정, [PROGRESS](docs/PROGRESS.md) 참고)
 - **데이터랩 결합 분석**(`eval/datalab/`): 한국관광 데이터랩 외국인 방문자수 × 습득물 10.6만 건(2026.8) → 외국인 방문 상위 20개 시군구(8.7%)에
   **외국인 방문 59.2%·습득물 38.1%** 집중, 분실 지역 ≠ 보관 지역(역·유실물센터 등 거점) 확인 → 경유 지역 확장 검색의 근거
-- **개인정보**: 공개 신고 목록은 문장·상태·최고 매칭명만 노출(이메일·신고 id 비노출). 신고 조작은 등록 시 받은 id를 가진 본인만.
+- **보안·개인정보**: 신고마다 관리 토큰(등록 응답으로 1회, 서버엔 해시만) — 확인·제외·알림 설정은 토큰이 있어야 가능.
+  공개 신고 목록 없음('내 신고'는 이 브라우저에서만). 알림 이메일은 **확인 링크를 눌러야** 활성화(남의 주소로 못 보냄).
+  IP별 레이트리밋 + 하루 AI 사용량 상한, 사진·검색어 크기 상한.
 
 **✅ 검색 품질 실측 (eval, 골든셋 29문항)**
 
@@ -76,7 +78,7 @@
 → 의미 임베딩이 주력 랭커(한글↔영문·번역·오타 커버). **지역 가점**은 밀집 군집(검정지갑 193건 등)에서
 묻힌 정답을 MRR 0.084→0.857로 끌어올림(덧셈 소프트 w≈0.05, eval 검증). dep→구/시 gazetteer+지오코딩 커버 **95%**.
 
-**✅ 테스트**: `uv run pytest` — 핵심 로직 79개(fan-out·지역가점·store 생애주기·정규화·notifier·약한 후보 알림·알림 기간·수집기·실시간 스트림·다국어 메일·검색 부스트·API), 외부서비스 불필요(목킹).
+**✅ 테스트**: `uv run pytest` — 핵심 로직 120개(fan-out·지역가점·지역 매칭·store 생애주기·정규화·notifier·약한 후보 알림·알림 기간·이메일 확인·수집기·실시간 스트림·다국어 메일·보안·레이트리밋·운영 점검·API), 외부서비스 불필요(목킹).
 
 **⏳ 남은 것**: 카카오 알림톡(현재 이메일/콘솔 알림) · 브라우저 확장 · 인증(user_id) · React/Vercel 프론트 분리 · 이미지 임베딩(CLIP) 검색.
 
@@ -102,7 +104,7 @@ eval/        골든셋 + 성능 실험 (BM25/임베딩/하이브리드/스윕, O
 infra/       로컬 docker-compose + OpenSearch(nori) Dockerfile + 인덱스 매핑 + Caddyfile(프로덕션 HTTPS)
 fixtures/    공공 API 실응답 샘플 (진실의 원천)
 scripts/     daily_collect.sh(cron 일일 수집) · region 백필/지오코딩
-tests/       pytest 79개 (외부 서비스 목킹)
+tests/       pytest 120개 (외부 서비스 목킹)
 docs/        PROGRESS.md (설계·실험·결정 기록) · DEPLOY.md (배포·운영) · screenshots/
 apps/api/       FastAPI 엔드포인트 13개 (/found-items/search·/browse, /lost-items[+/image, /stream], /alerts·/confirm·/dismiss, /health, GET /)
 apps/agent/     매칭 에이전트 (LangGraph: extract→route→fanout→search→grade, 단계 스트림) + rematch(지속 재매칭·알림 기간)

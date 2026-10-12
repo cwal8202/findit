@@ -91,12 +91,37 @@ chmod +x scripts/daily_collect.sh
 - 수집은 **별도 일회성 컨테이너**(`docker compose run --rm backend …`)에서 실행 → 수집 중 자동배포가 백엔드를 재생성해도 끊기지 않음.
   (예전 `exec` 방식은 새벽 배포에 수집이 중단돼 작업이 유실됨. 첫 7일 창 실행은 서버에서 ~4.5시간.)
 - 진행 확인: `docker ps | grep backend-run` (수집 컨테이너) · `tail -f /root/findit/daily_collect.log`
+- 수집기는 **500건마다 색인** — 중간에 끊겨도 앞 배치는 남고 다음 실행이 '이미 색인' 스킵으로 이어서 처리.
+- **실패·정체 알림**: 수집이 실패하면, 또는 가장 최근 습득일이 3일 넘게 지나면(새 데이터가 안 들어옴) 관리자
+  (`NOTIFY_EMAIL_TO`, 없으면 `SMTP_USER`)에게 메일(`apps/ops.py`). 수동 점검:
+  `docker compose -f docker-compose.prod.yml run --rm -T backend uv run python -m apps.ops freshness --max-age-days 3`
+
+## 8-1. DB 일일 백업 (cron)
+`scripts/backup_db.sh` — PostgreSQL(분실물 신고)을 `pg_dump | gzip`으로 `/root/findit-backups/`에 저장, 14일 보관, 실패 시 메일.
+```bash
+chmod +x scripts/backup_db.sh
+(crontab -l 2>/dev/null; echo "0 4 * * * /root/findit/scripts/backup_db.sh >> /root/findit/backup.log 2>&1") | crontab -
+```
+- 복구: `gunzip -c /root/findit-backups/findit_YYYYMMDD_HHMM.sql.gz | docker compose -f docker-compose.prod.yml exec -T postgres psql -U findit findit`
+- 백업은 같은 서버에 남음(서버 장애엔 무력) → 중요해지면 외부 저장소로 복사. OpenSearch는 재수집으로 복구 가능해 백업 제외.
+
+## 8-2. DB 비밀번호 (최초 1회 확인)
+`.env`에 `POSTGRES_PASSWORD`가 없으면 compose 기본값(`findit_pw`)이 쓰인다. DB는 외부에 노출되지 않지만 강한 값으로 바꿀 것.
+Postgres는 **처음 만들 때만** 이 값을 읽으므로, 이미 운영 중이면 DB 안에서 바꾸고 `.env`를 맞춘다:
+```bash
+P=$(openssl rand -hex 24)
+docker compose -f docker-compose.prod.yml exec -T postgres psql -U findit -c "ALTER USER findit WITH PASSWORD '$P'"
+echo "POSTGRES_PASSWORD=$P" >> .env
+docker compose -f docker-compose.prod.yml up -d backend    # DATABASE_URL 갱신
+```
 
 ## 9. 자동배포 (GitHub Actions)
 `.github/workflows/deploy.yml` — **`main`에 push되면** GitHub Actions가 서버에 SSH 접속해 자동 재배포한다.
 ```
-main push → git pull --ff-only → docker compose up -d --build backend caddy → image prune
+main push → [test] pytest 통과 → [deploy] git pull --ff-only → docker compose up -d --build backend caddy
+            → caddy reload(Caddyfile 변경 반영) → image prune
 ```
+- **테스트가 실패하면 배포하지 않는다**(깨진 커밋이 운영에 나가지 않게).
 - 접속정보는 **레포 Settings > Secrets**에 저장(코드에 노출 안 함):
   - `SSH_HOST` : 서버 IP
   - `SSH_KEY`  : 서버 접속용 SSH 개인키 전체(`-----BEGIN ...-----` 포함)
@@ -129,7 +154,13 @@ main push → git pull --ff-only → docker compose up -d --build backend caddy 
   ```
   → `event: extract` → `event: result`(status `invalid`)가 오면 정상.
 
+## 보안·남용 방지 (운영 값)
+- **레이트리밋·일일 AI 상한**: `.env`로 조정(`LIMIT_REPORT_10MIN`·`LIMIT_IMAGE_DAY`·`DAILY_AI_BUDGET` 등, `apps/api/config.py`).
+  프로세스 메모리 카운터라 **uvicorn 워커를 늘리면** 공유 저장소(Redis 등)로 바꿔야 한다. 백엔드 재시작 시 초기화.
+- **요청 본문 상한**: Caddy `request_body max_size 10MB`.
+- **이메일**: 확인(double opt-in)된 주소에만 알림. 확인 링크는 `PUBLIC_BASE_URL` 기준(기본 라이브 도메인).
+
 ## 이후 강화(선택)
 - **React/Vercel 프론트 분리**: 분리 시 FastAPI에 CORS 허용 오리진 추가.
-- **관측성**: 로그 집계·헬스 알림, OpenSearch 스냅샷 백업.
+- **관측성**: 에러 추적(Sentry 등)·외부 헬스 체크, 백업 외부 복제.
 - **이미지 임베딩(CLIP) 레인**: RAM 여유 있는 인스턴스에서 image-to-image KNN 추가(현재는 Gemini 사진 대조로 대체).

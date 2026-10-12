@@ -15,7 +15,21 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # 테스트가 통과해야만 배포(깨진 커밋이 운영에 나가지 않게). 외부 서비스는 테스트에서 전부 목킹.
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: 의존성 설치
+        run: pip install uv && uv sync --frozen
+      - name: pytest
+        run: uv run pytest -q
+
   deploy:
+    needs: test               # 테스트 실패 시 배포 안 함
     runs-on: ubuntu-latest    # GitHub가 빌려주는 임시 리눅스
     steps:
       - name: 서버에 SSH 접속해 배포
