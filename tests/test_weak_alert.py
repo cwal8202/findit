@@ -14,8 +14,13 @@ class FakeNotifier:
     def __init__(self):
         self.sent: list[tuple[str, bool]] = []  # (1위 atc_id, weak)
 
+        self.verified: list[str] = []          # 확인 메일 수신자
+
     def notify(self, lost, matches, weak=False):
         self.sent.append((matches[0]["atc_id"], weak))
+
+    def verify(self, to, lang, link):
+        self.verified.append(to)
 
 
 @pytest.fixture(autouse=True)
@@ -31,6 +36,13 @@ def fake(monkeypatch):
     monkeypatch.setattr(rematch, "notifier", n)
     monkeypatch.setattr("apps.notifier.notifier", n)  # 등록 경로는 지연 임포트
     return n
+
+
+def _verified_report(**kw) -> str:
+    """확인된 이메일이 있는 신고(재매칭 알림 대상)."""
+    lid = store.add("검정 지갑", {}, [], [], None, None, **kw)
+    store._run("UPDATE lost_items SET email='me@x.com', email_verified=1 WHERE id=?", (lid,))
+    return lid
 
 
 def _matches(atc: str, grade: int) -> list[dict]:
@@ -51,7 +63,7 @@ def test_alert_level_boundaries(grade, weak_on, expected):
 
 
 def test_rematch_weak_sent_once_and_stays_open(monkeypatch, fake):
-    lid = store.add("검정 지갑", {}, [], [], None, None, email="me@x.com", notify_weak=True)
+    lid = _verified_report(notify_weak=True)
     monkeypatch.setattr(rematch.graph, "match_stored", lambda *a, **k: _matches("A_1", 60))
 
     rematch.rematch_open(verbose=False)
@@ -64,7 +76,7 @@ def test_rematch_weak_sent_once_and_stays_open(monkeypatch, fake):
 
 
 def test_rematch_weak_new_candidate_alerts_again(monkeypatch, fake):
-    store.add("검정 지갑", {}, [], [], None, None, email="me@x.com", notify_weak=True)
+    _verified_report(notify_weak=True)
     monkeypatch.setattr(rematch.graph, "match_stored", lambda *a, **k: _matches("A_1", 60))
     rematch.rematch_open(verbose=False)
     monkeypatch.setattr(rematch.graph, "match_stored", lambda *a, **k: _matches("B_1", 70))
@@ -73,27 +85,35 @@ def test_rematch_weak_new_candidate_alerts_again(monkeypatch, fake):
 
 
 def test_rematch_no_optin_keeps_old_behavior(monkeypatch, fake):
-    store.add("검정 지갑", {}, [], [], None, None, email="me@x.com")  # notify_weak 기본 False
+    _verified_report()  # notify_weak 기본 False
     monkeypatch.setattr(rematch.graph, "match_stored", lambda *a, **k: _matches("A_1", 70))
     rematch.rematch_open(verbose=False)
     assert fake.sent == []
 
 
 def test_rematch_strong_promotes_candidate(monkeypatch, fake):
-    lid = store.add("검정 지갑", {}, [], [], None, None, email="me@x.com", notify_weak=True)
+    lid = _verified_report(notify_weak=True)
     monkeypatch.setattr(rematch.graph, "match_stored", lambda *a, **k: _matches("A_1", 90))
     rematch.rematch_open(verbose=False)
     assert fake.sent == [("A_1", False)]
     assert store.get(lid)["status"] == "candidate"
 
 
-def test_register_weak_needs_email(fake):
+def test_register_with_email_sends_verification_not_alert(fake):
     result = {"matches": _matches("A_1", 60)}
     r1 = main._persist_and_respond("검정 지갑", result, email="", notify_weak=True)
-    assert fake.sent == []                       # 이메일 없으면 옵트인 무효(관리자 주소로 새지 않게)
+    assert fake.sent == [] and fake.verified == []   # 이메일 없으면 옵트인 무효
     assert store.get(r1.id)["notify_weak"] is False
 
     r2 = main._persist_and_respond("검정 지갑", result, email="me@x.com", notify_weak=True)
-    assert fake.sent == [("A_1", True)]
-    assert r2.status == "open"
-    assert store.get(r2.id)["weak_notified"] == ["A_1"]  # 다음 재매칭에서 같은 후보 재알림 방지
+    assert fake.sent == [] and fake.verified == ["me@x.com"]   # 확인 전엔 결과·알림 메일 없음
+    assert r2.status == "open" and r2.email_pending and r2.token
+    row = store.get(r2.id)
+    assert row["notify_weak"] and not row["email_verified"] and row["matches"][0]["atc_id"] == "A_1"
+
+
+def test_unverified_email_not_alerted_on_rematch(monkeypatch, fake):
+    store.add("검정 지갑", {}, [], [], None, None, email="me@x.com", notify_weak=True)  # 확인 안 됨
+    monkeypatch.setattr(rematch.graph, "match_stored", lambda *a, **k: _matches("A_1", 90))
+    rematch.rematch_open(verbose=False)
+    assert fake.sent == []

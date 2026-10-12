@@ -69,7 +69,8 @@ def _events(body: str) -> list[tuple[str, dict]]:
 def quiet_notifier(monkeypatch):
     sent = []
     monkeypatch.setattr("apps.notifier.notifier",
-                        type("N", (), {"notify": lambda self, lost, ms, weak=False: sent.append(weak)})())
+                        type("N", (), {"notify": lambda self, lost, ms, weak=False: sent.append(weak),
+                                       "verify": lambda self, to, lang, link: sent.append("verify")})())
     return sent
 
 
@@ -84,7 +85,8 @@ def test_api_stream_sends_steps_then_saved_result(monkeypatch, fake_pipeline, qu
     result = dict(evs)["result"]
     assert result["status"] == "candidate" and result["matches"][0]["grade"] == 85
     assert store.get(result["id"])["best_grade"] == 85      # 기존 경로와 동일하게 저장
-    assert quiet_notifier == [False]                        # 유력 후보 알림 1회
+    assert result["token"] and result["email_pending"]      # 관리 토큰 1회 전달 + 확인 메일 대기
+    assert quiet_notifier == ["verify"]                     # 결과 메일 대신 확인 메일만
 
 
 def test_api_stream_invalid_input_not_saved(monkeypatch, fake_pipeline, quiet_notifier):

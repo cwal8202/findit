@@ -39,6 +39,10 @@ class Notifier(Protocol):
         weak=True: 임계 미만 '약한 후보' 참고 알림(신고자 옵트인 시에만) — 문구를 낮춰 기대치 조정."""
         ...
 
+    def verify(self, to: str, lang: str, link: str) -> None:
+        """이메일 확인(double opt-in) 메일 — 고정 문구 + 확인 링크만(사용자 입력 미포함 → 스팸 릴레이 불가)."""
+        ...
+
 
 def _top(matches: list[dict]) -> dict:
     return matches[0] if matches else {}
@@ -60,6 +64,9 @@ class ConsoleNotifier:
             f"지역:{m.get('region') or '-'} | 습득일:{m.get('found_at')}"
             + (f"\n    (외 비슷한 후보 {extra}건)" if extra else "")
         )
+
+    def verify(self, to: str, lang: str, link: str) -> None:
+        _emit(f"✉️ [확인 메일→{to}, {lang}] {link}")
 
 
 def _clean_desc(s) -> str:
@@ -109,17 +116,56 @@ def _fill(s: str, **kw) -> str:
     return _PH.sub(lambda m: str(kw.get(m.group(1), m.group(0))), s)
 
 
-def _ui(lang: str) -> dict:
-    """메일 고정 문구를 사용자 언어로. 실패하면 영어, 그것도 실패하면 한국어. 성공만 캐시."""
+def _table(name: str, base: dict, lang: str) -> dict:
+    """고정 문구 표를 사용자 언어로. 실패하면 영어, 그것도 실패하면 한국어. 성공만 캐시(표·언어별)."""
     if lang == "ko":
-        return KO
-    if lang in _UI_CACHE:
-        return _UI_CACHE[lang]
-    tr = gemini.translate_strings(KO, lang)
-    if tr and all(set(_PH.findall(tr[k])) >= set(_PH.findall(v)) for k, v in KO.items()):
-        _UI_CACHE[lang] = tr
+        return base
+    key = f"{name}:{lang}"
+    if key in _UI_CACHE:
+        return _UI_CACHE[key]
+    tr = gemini.translate_strings(base, lang)
+    if tr and all(set(_PH.findall(tr[k])) >= set(_PH.findall(v)) for k, v in base.items()):
+        _UI_CACHE[key] = tr
         return tr
-    return _ui("en") if lang != "en" else KO
+    return _table(name, base, "en") if lang != "en" else base
+
+
+def _ui(lang: str) -> dict:
+    return _table("alert", KO, lang)
+
+
+# 이메일 확인 메일 — 고정 문구만(사용자 입력을 싣지 않음: 남의 주소로 내용을 보내는 통로가 되지 않게)
+KO_VERIFY = {
+    "subject": "이메일 확인 — 분실물 알림 받기",
+    "head": "알림 받을 이메일을 확인해주세요",
+    "desc": "FindIt에서 이 주소로 분실물 알림을 받겠다는 요청이 있었어요. 본인이 요청했다면 아래 버튼을 눌러주세요. "
+            "요청하지 않았다면 이 메일은 무시하면 돼요 — 확인하지 않으면 알림이 가지 않아요.",
+    "button": "알림 받기 확인",
+    "or_link": "버튼이 동작하지 않으면 이 주소를 열어주세요: {url}",
+    "expires": "이 링크는 {h}시간 동안 유효해요.",
+}
+
+
+def build_verify_email(lang: str, link: str) -> tuple[str, str, str]:
+    """(제목, 텍스트, HTML) — 확인 메일. 신고자 언어로 번역(고정 문구라 언어별 1회만)."""
+    S = _table("verify", KO_VERIFY, gemini.normalize_lang(lang))
+    e = _html.escape
+    h = settings.verify_hours
+    text = "\n".join([S["head"], "", S["desc"], "", link, "", _fill(S["expires"], h=h)])
+    html = (
+        '<div style="font-family:-apple-system,BlinkMacSystemFont,\'Malgun Gothic\',sans-serif;'
+        'max-width:520px;color:#1f2430">'
+        '<div style="font-size:20px;font-weight:800;color:#2563eb;padding-bottom:12px;'
+        'border-bottom:1px solid #eee;margin-bottom:16px">FindIt</div>'
+        f'<h2 style="font-size:18px;margin:0 0 8px">{e(S["head"])}</h2>'
+        f'<p style="margin:0 0 18px">{e(S["desc"])}</p>'
+        f'<div style="text-align:center;margin:20px 0"><a href="{e(link)}" style="display:inline-block;'
+        'background:#2563eb;color:#fff;text-decoration:none;padding:13px 30px;border-radius:10px;'
+        f'font-weight:700">{e(S["button"])}</a></div>'
+        f'<p style="font-size:12px;color:#6b7280">{_fill(e(S["or_link"]), url=e(link))}<br>'
+        f'{e(_fill(S["expires"], h=h))}</p></div>'
+    )
+    return f"[FindIt] {S['subject']}", text, html
 
 
 def _localize(matches: list[dict], lang: str) -> list[dict]:
@@ -291,19 +337,33 @@ class EmailNotifier:
     """SMTP 이메일 알림(HTML+텍스트). 신고자 언어로 발송. 발송 실패해도 요청을 죽이지 않음(로그 후 진행)."""
 
     def notify(self, lost: dict, matches: list[dict], weak: bool = False) -> None:
-        # 수신자 = 신고자가 등록 시 입력한 이메일(신고별) → 없으면 config 기본값
-        to = (lost.get("email") or "").strip() or settings.notify_email_to or settings.smtp_user
+        # 수신자 = 신고자가 확인한 이메일만(관리자 주소로 대신 보내지 않음 — 남의 신고 내용이 새지 않게)
+        to = (lost.get("email") or "").strip()
         if not (settings.smtp_user and settings.smtp_password and to) or not matches:
             _emit("[알림] 이메일 설정/수신자/후보 미비 → 발송 생략")
             return
         subject, text, html = build_email(lost, matches, weak)
+        if self._send(to, subject, text, html, logo=True):
+            _emit(f"📧 [이메일 알림→{to}, {lost.get('lang') or 'ko'}] '{_top(matches).get('name')}' "
+                  f"외 {max(len(matches)-1,0)}건 발송 완료")
+
+    def verify(self, to: str, lang: str, link: str) -> None:
+        if not (settings.smtp_user and settings.smtp_password and to):
+            _emit("[알림] 이메일 설정/수신자 미비 → 확인 메일 생략")
+            return
+        subject, text, html = build_verify_email(lang, link)
+        if self._send(to, subject, text, html):
+            _emit(f"✉️ [확인 메일→{to}, {lang}] 발송 완료")
+
+    @staticmethod
+    def _send(to: str, subject: str, text: str, html: str, logo: bool = False) -> bool:
         msg = EmailMessage()
         msg["Subject"] = subject
         msg["From"] = formataddr(("FindIt", settings.smtp_user))
         msg["To"] = to
         msg.set_content(text)
         msg.add_alternative(html, subtype="html")
-        if _LOGO.exists():  # HTML 파트에 로고 인라인 첨부(cid:findit-logo)
+        if logo and _LOGO.exists():  # HTML 파트에 로고 인라인 첨부(cid:findit-logo)
             try:
                 html_part = msg.get_payload()[-1]
                 html_part.add_related(_LOGO.read_bytes(), "image", "jpeg", cid="findit-logo")
@@ -314,10 +374,10 @@ class EmailNotifier:
                 s.starttls()
                 s.login(settings.smtp_user, settings.smtp_password)
                 s.send_message(msg)
-            _emit(f"📧 [이메일 알림→{to}, {lost.get('lang') or 'ko'}] '{_top(matches).get('name')}' "
-                  f"외 {max(len(matches)-1,0)}건 발송 완료")
+            return True
         except Exception as e:  # noqa: BLE001
             _emit(f"[알림] 이메일 발송 실패({type(e).__name__}: {e}) → 스킵")
+            return False
 
 
 def get_notifier() -> Notifier:

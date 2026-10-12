@@ -46,6 +46,53 @@ def alert_level(grade: int | None, notify_weak: bool) -> str | None:
     return None
 
 
+_SLIM_KEYS = ("atc_id", "fd_sn", "name", "subject", "description", "category", "color", "dep_place",
+              "region", "found_at", "org_name", "tel", "source", "image_url", "score", "grade", "reason",
+              "name_en", "desc_en", "visual_score", "visual_reason")
+
+
+def slim_matches(matches: list[dict], n: int = 6) -> list[dict]:
+    """메일·확인용으로 저장할 후보(서버 판정 결과) — 상위 n개, 필요한 필드만, 설명은 짧게."""
+    out = []
+    for m in (matches or [])[:n]:
+        d = {k: m.get(k) for k in _SLIM_KEYS if m.get(k) is not None}
+        if isinstance(d.get("description"), str):
+            d["description"] = d["description"][:300]
+        out.append(d)
+    return out
+
+
+def can_email(row: dict) -> bool:
+    """알림 메일은 신고자가 확인(double opt-in)한 이메일에만."""
+    return bool(row.get("email")) and bool(row.get("email_verified"))
+
+
+def _rematch_one(row: dict, verbose: bool) -> dict | None:
+    matches = graph.match_stored(
+        row["text"], row["extracted"] or {}, row["region_set"] or [], row["queries"] or [],
+        lang=row.get("lang") or "ko",
+    )
+    dismissed = set(row.get("dismissed") or [])  # '아니에요' 한 후보 제외
+    matches = [m for m in matches if m.get("atc_id") not in dismissed]
+    top = matches[0] if matches else None
+    g = top.get("grade") if top else None
+    level = alert_level(g, row.get("notify_weak", False)) if top else None
+    if level == "strong":
+        store.update_match(row["id"], top, g, "candidate", matches=slim_matches(matches))  # 확정 아닌 '유력 후보'
+        if can_email(row):
+            notifier.notify(row, matches)  # 채널 독립 알림(최고 후보 + 비슷한 후보 목록)
+        return {"lost": row, "match": top}
+    if level == "weak" and top.get("atc_id") not in (row.get("weak_notified") or []) and can_email(row):
+        store.mark_weak_notified(row["id"], top.get("atc_id"))  # 같은 후보로 반복 알림 방지
+        store.set_matches(row["id"], slim_matches(matches))
+        notifier.notify(row, matches, weak=True)  # open 유지 — 더 나은 후보 계속 탐색
+        if verbose:
+            print(f"  · {row['id']} '{row['text'][:24]}' 약한 후보 grade={g} → 참고 알림(open 유지)")
+    elif verbose:
+        print(f"  · {row['id']} '{row['text'][:24]}' 최고 grade={g} (임계 미달, open 유지)")
+    return None
+
+
 def rematch_open(verbose: bool = True) -> list[dict]:
     store.init()
     opens = store.list_open()
@@ -53,6 +100,7 @@ def rematch_open(verbose: bool = True) -> list[dict]:
         print(f"재매칭 대상(open): {len(opens)}건 / 임계 grade {settings.rematch_grade_threshold}"
               f" (약한 후보 옵트인 ≥{settings.weak_grade_threshold})")
     hits: list[dict] = []
+    failed = 0
     now = datetime.now(timezone.utc)
     for row in opens:
         if watch_deadline(row) < now:  # 알림 기간 만료 → 재매칭(LLM 비용) 중단. 결과창에서 기간 재설정 시 재개.
@@ -60,28 +108,16 @@ def rematch_open(verbose: bool = True) -> list[dict]:
             if verbose:
                 print(f"  · {row['id']} '{row['text'][:24]}' 알림 기간 만료 → expired")
             continue
-        matches = graph.match_stored(
-            row["text"], row["extracted"] or {}, row["region_set"] or [], row["queries"] or [],
-            lang=row.get("lang") or "ko",
-        )
-        dismissed = set(row.get("dismissed") or [])  # '아니에요' 한 후보 제외
-        matches = [m for m in matches if m.get("atc_id") not in dismissed]
-        top = matches[0] if matches else None
-        g = top.get("grade") if top else None
-        level = alert_level(g, row.get("notify_weak", False)) if top else None
-        if level == "strong":
-            store.update_match(row["id"], top, g, "candidate")  # 확정 아닌 '유력 후보'
-            hits.append({"lost": row, "match": top})
-            notifier.notify(row, matches)  # 채널 독립 알림(최고 후보 + 비슷한 후보 목록)
-        elif level == "weak" and top.get("atc_id") not in (row.get("weak_notified") or []):
-            store.mark_weak_notified(row["id"], top.get("atc_id"))  # 같은 후보로 반복 알림 방지
-            notifier.notify(row, matches, weak=True)  # open 유지 — 더 나은 후보 계속 탐색
-            if verbose:
-                print(f"  · {row['id']} '{row['text'][:24]}' 약한 후보 grade={g} → 참고 알림(open 유지)")
-        elif verbose:
-            print(f"  · {row['id']} '{row['text'][:24]}' 최고 grade={g} (임계 미달, open 유지)")
+        try:  # 한 건 실패(LLM·검색 오류)가 나머지 신고 재매칭을 막지 않게
+            hit = _rematch_one(row, verbose)
+        except Exception as e:  # noqa: BLE001
+            failed += 1
+            print(f"  ! {row['id']} 재매칭 실패({type(e).__name__}: {e}) → 다음 신고로")
+            continue
+        if hit:
+            hits.append(hit)
     if verbose:
-        print(f"신규 매칭 {len(hits)}건")
+        print(f"신규 매칭 {len(hits)}건" + (f", 실패 {failed}건" if failed else ""))
     return hits
 
 

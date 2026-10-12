@@ -29,5 +29,7 @@ jobs:
             cd /root/findit
             git pull --ff-only
             docker compose -f docker-compose.prod.yml up -d --build backend caddy
+            # Caddyfile은 바인드 마운트라 컨테이너가 그대로면 변경을 안 읽음 → 무중단 설정 재적용
+            docker compose -f docker-compose.prod.yml exec -T caddy caddy reload --config /etc/caddy/Caddyfile
             docker image prune -f
             docker compose -f docker-compose.prod.yml ps

@@ -30,6 +30,18 @@ class Settings(BaseSettings):
     weak_grade_threshold: int = 50     # 약한 후보 하한 — 신고자가 옵트인하면 [이 값, 위 임계) 구간도 '참고' 알림
     watch_days_default: int = 30       # 지속 재매칭(알림) 기간 기본값 — 지나면 expired, 재매칭·LLM 비용 중단
     watch_days_max: int = 180          # 선택 상한 = 습득물 최대 보관 기간(~6개월)
+    verify_hours: int = 48             # 이메일 확인 링크 유효 시간
+
+    # 남용 방지 — IP별 레이트리밋 + 하루 전체 AI 사용량 상한(단일 프로세스 메모리 카운터, 재시작 시 초기화)
+    limit_report_10min: int = 5        # 텍스트 신고(추출·임베딩·판정 LLM)
+    limit_report_day: int = 30
+    limit_image_10min: int = 3         # 사진 신고(Vision + 사진 대조, 더 비쌈)
+    limit_image_day: int = 10
+    limit_search_hour: int = 30        # 공개 검색 API(grade=true면 LLM)
+    limit_translate_hour: int = 60     # 둘러보기 외국어 검색어 번역
+    limit_alerts_hour: int = 10        # 알림 설정·이메일 확인
+    limit_verify_mail_day: int = 3     # 같은 이메일 주소로 보내는 확인 메일
+    daily_ai_budget: int = 1500        # 하루(KST) 전체 AI 요청 단위 상한 — 초과 시 429(과금 폭주 차단)
 
     # 알림 채널: console | email  (email은 아래 SMTP 설정 필요, 미설정 시 console 폴백)
     notifier_channel: str = "console"

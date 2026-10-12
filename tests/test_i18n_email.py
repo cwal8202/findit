@@ -69,22 +69,30 @@ def test_translation_failure_falls_back_to_english_then_korean(monkeypatch):
     assert subject.startswith("[FindIt] 분실물 매칭 알림") and "강남경찰서" in text  # 전부 실패 → 한국어
 
 
+def test_verify_email_has_only_fixed_text_and_link(monkeypatch):
+    monkeypatch.setattr(gemini, "translate_strings", fake_translate("JA:"))
+    subject, text, html = notifier.build_verify_email("ja", "https://x/email/verify?token=T")
+    assert "JA:" in subject and "https://x/email/verify?token=T" in text and "token=T" in html
+    assert "{url}" not in html and "{h}" not in text                     # 자리표시자 치환 완료
+
+
 def test_translation_that_breaks_placeholders_is_rejected(monkeypatch):
     def broken(strings, lang):
         return {k: v.replace("{t}", "").replace("{n}", "") for k, v in strings.items()} if lang == "fr" \
             else {k: f"EN:{v}" for k, v in strings.items()}
     monkeypatch.setattr(gemini, "translate_strings", broken)
     assert notifier._ui("fr")["subj_strong"] == "EN:분실물 매칭 알림"
-    assert "fr" not in notifier._UI_CACHE
+    assert "alert:fr" not in notifier._UI_CACHE
 
 
 def test_report_language_saved_and_used_in_rematch(monkeypatch):
     sent = []
     monkeypatch.setattr("apps.notifier.notifier",
-                        type("N", (), {"notify": lambda self, lost, ms, weak=False: sent.append(lost["lang"])})())
+                        type("N", (), {"notify": lambda self, *a, **k: None,
+                                       "verify": lambda self, to, lang, link: sent.append(lang)})())
     r = main._persist_and_respond("I lost my black wallet", {"matches": [dict(MATCH, score=0.9)]},
                                   email="me@x.com", lang="en")
-    assert store.get(r.id)["lang"] == "en" and sent == ["en"]         # 저장 + 등록 알림 언어
+    assert store.get(r.id)["lang"] == "en" and sent == ["en"]         # 저장 + 확인 메일도 신고 언어
 
     store._run("UPDATE lost_items SET status='open' WHERE id=?", (r.id,))
     seen = {}

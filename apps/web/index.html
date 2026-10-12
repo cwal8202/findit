@@ -234,10 +234,10 @@
 
   <div class="card">
     <div style="display:flex; justify-content:space-between; align-items:center">
-      <h2 style="margin:0" data-i18n="myReports">최근 신고 목록</h2>
+      <h2 style="margin:0" data-i18n="myReports">내 신고 (이 브라우저)</h2>
       <button class="ghost" onclick="loadMine()" data-i18n="refresh">새로고침</button>
     </div>
-    <p class="lead" style="margin:8px 0 0">딱 맞는 게 없어도 신고는 저장돼요. <b>새 습득물이 들어오면 자동으로 다시 찾아</b> 이메일로 알려드려요.</p>
+    <p class="lead" style="margin:8px 0 0">딱 맞는 게 없어도 신고는 저장돼요. <b>새 습득물이 들어오면 자동으로 다시 찾아</b> 이메일로 알려드려요. 내 신고는 이 브라우저에서만 보여요.</p>
     <div id="mine" style="margin-top:12px"><span class="muted" data-i18n="loading">불러오는 중…</span></div>
   </div>
   </div><!-- /viewFind -->
@@ -313,7 +313,7 @@ const I18N = {
     pickPhoto:"📷 사진 선택", searchPhoto:"사진으로 찾기",
     photoNote1:"잃어버린 물건이 찍힌(또는 비슷한) 사진이면 돼요. 사진엔 없는 <b>장소·날짜</b>는 위 설명/분실일에 적으면 함께 반영돼요.",
     photoNote2:"⚠️ 습득물은 <b>사진이 없는 경우가 많아요(약 22%만 보유).</b> 그래서 기본은 사진 속 <b>특징(종류·색상)을 읽어 텍스트로 검색</b>하고, 후보 중 <b>사진이 있는 건 당신 사진과 직접 비교</b>해 '📷 사진도 유사'로 표시해요. 설명·색상·장소를 함께 적을수록 정확해집니다.",
-    matchResult:"매칭 결과", myReports:"최근 신고 목록", refresh:"새로고침", loading:"불러오는 중…",
+    matchResult:"매칭 결과", myReports:"내 신고 (이 브라우저)", refresh:"새로고침", loading:"불러오는 중…",
     browseTitle:"전체 습득물 둘러보기", browseDesc:"공개데이터로 수집된 습득물을 키워드·지역·날짜로 필터링해 살펴보세요. (AI 판정 없이 즉시 조회)",
     kwPh:"키워드 (예: 지갑, 에어팟, 카드)", allRegions:"전체 지역", foundDate:"습득일", searchBtn:"검색", reset:"초기화",
     step_extract:"추출", step_extractImg:"사진 분석", step_route:"지역", step_fanout:"검색어", step_search:"검색",
@@ -339,12 +339,14 @@ const I18N = {
     alertTitle:"🔔 알림 설정",
     alertDesc:"지금 못 찾아도 괜찮아요. 새 습득물이 들어올 때마다 매일 다시 찾아보고, <b>유력 후보가 나오면 이메일</b>로 알려드려요. 이메일을 새로 남기면 지금 결과도 보내드려요.",
     alertPeriod:"알림 기간", days:(n)=>`${n}일`, save:"저장", saving:"저장 중…", alertSaved:"저장했어요.",
+    verifySent:(e)=>`✉️ <b>${e}</b>로 확인 메일을 보냈어요. 메일의 <b>[알림 받기 확인]</b>을 눌러야 알림이 켜져요.`,
+    tooMany:"요청이 너무 많아요. 잠시 후 다시 시도해주세요.",
     alertUntil:(d, e)=> e ? `📅 <b>${d}</b>까지 매일 비교해 <b>${e}</b>로 알려드려요.`
                           : `📅 <b>${d}</b>까지 매일 다시 찾아요. <b>이메일을 남기면</b> 알림을 보내드려요.`,
     resultsSent:(x)=>`지금 결과도 ${x}로 보냈어요.`,
     emailPh2:"이메일 주소", emailInvalid:"유효한 이메일을 입력하세요.",
     browseXlate:"", perPage:"개씩", browseCount:(n)=>`총 ${n.toLocaleString()}건`, noItems:"조건에 맞는 습득물이 없어요.", noName:"(이름 없음)",
-    prev:"‹ 이전", next:"다음 ›", loadFail:"불러오지 못했어요.", mineEmpty:"아직 등록한 신고가 없어요.",
+    prev:"‹ 이전", next:"다음 ›", loadFail:"불러오지 못했어요.", mineEmpty:"이 브라우저에서 등록한 신고가 없어요.",
     mineLoadFail:"목록을 불러오지 못했어요.", bestMatch:"최고 매칭",
     showMore:(n)=>`더 보기 (전체 ${n}건)`, collapse:"접기",
     stConfirmed:"확인됨", stCandidate:"유력 후보", stOpen:"찾는중", stExpired:"기간 만료",
@@ -360,7 +362,7 @@ const I18N = {
     pickPhoto:"📷 Choose photo", searchPhoto:"Search by photo",
     photoNote1:"A photo of your item (or a similar one) works. A photo can't show <b>place/date</b>, so add them above.",
     photoNote2:"⚠️ Many found items have <b>no photo (only ~22% do).</b> So we read your photo's <b>features (type, color) and search by text</b>, and for candidates that <b>do have a photo we compare it directly with yours</b> ('📷 Photo match'). Adding a description, color and place improves accuracy.",
-    matchResult:"Match results", myReports:"Recent reports", refresh:"Refresh", loading:"Loading…",
+    matchResult:"Match results", myReports:"My reports (this browser)", refresh:"Refresh", loading:"Loading…",
     browseTitle:"Browse all found items", browseDesc:"Browse collected found items by keyword, region and date. (Instant — no AI grading.)",
     kwPh:"Keyword (e.g., wallet, AirPods, card)", allRegions:"All regions", foundDate:"Found date", searchBtn:"Search", reset:"Reset",
     step_extract:"Extract", step_extractImg:"Read photo", step_route:"Area", step_fanout:"Queries", step_search:"Search",
@@ -386,13 +388,15 @@ const I18N = {
     alertTitle:"🔔 Alert settings",
     alertDesc:"Not found yet? We re-check daily as new items arrive and <b>email you when a strong candidate appears</b>. A newly entered email also gets these results now.",
     alertPeriod:"Alert for", days:(n)=>`${n} days`, save:"Save", saving:"Saving…", alertSaved:"Saved.",
+    verifySent:(e)=>`✉️ We sent a confirmation email to <b>${e}</b>. Press <b>Confirm</b> in that email to turn on alerts.`,
+    tooMany:"Too many requests. Please try again shortly.",
     alertUntil:(d, e)=> e ? `📅 We'll check daily until <b>${d}</b> and alert <b>${e}</b>.`
                           : `📅 We'll re-check daily until <b>${d}</b>. <b>Leave an email</b> to get alerts.`,
     resultsSent:(x)=>`Current results sent to ${x}.`,
     emailPh2:"Email address", emailInvalid:"Enter a valid email.",
     browseXlate:"💡 Item names &amp; descriptions here are in Korean. To read them in your language, use your browser's <b>“Translate page”</b> (right-click → Translate, or the translate icon in the address bar).",
     perPage:"per page", browseCount:(n)=>`${n.toLocaleString()} total`, noItems:"No found items match.", noName:"(no name)",
-    prev:"‹ Prev", next:"Next ›", loadFail:"Couldn't load.", mineEmpty:"No reports yet.",
+    prev:"‹ Prev", next:"Next ›", loadFail:"Couldn't load.", mineEmpty:"No reports from this browser yet.",
     mineLoadFail:"Couldn't load the list.", bestMatch:"Best match",
     showMore:(n)=>`Show all (${n})`, collapse:"Collapse",
     stConfirmed:"Confirmed", stCandidate:"Strong match", stOpen:"Searching", stExpired:"Expired",
@@ -481,12 +485,25 @@ function matchCard(m, idx, preview = false) {
   </div>`;
 }
 
-let _lid = null, _matches = [];
+let _lid = null, _token = "", _matches = [];
+
+// 등록 응답의 (id, 관리 토큰)을 이 브라우저에 보관 → '내 신고'·확인·제외·알림 설정에 사용(서버엔 해시만 있음)
+const MINE_KEY = "findit_mine";
+function mineRefs() { try { return JSON.parse(localStorage.getItem(MINE_KEY) || "[]"); } catch (e) { return []; } }
+function saveMineRef(id, token) {
+  if (!id || !token) return;
+  try { localStorage.setItem(MINE_KEY, JSON.stringify([{ id, token }, ...mineRefs().filter(r => r.id !== id)].slice(0, 50))); } catch (e) {}
+}
+const authHeaders = () => ({ "Content-Type": "application/json", "X-Report-Token": _token });
+async function errText(res) {  // 서버 오류 → 사람이 읽을 문구(429는 이용량 안내)
+  try { const d = await res.json(); if (d && typeof d.detail === "string") return d.detail; } catch (e) {}
+  return res.status === 429 ? t('tooMany') : t('serverErr') + res.status;
+}
 
 async function confirmMatch(idx) {
   const m = _matches[idx];
   try {
-    await fetch(`/lost-items/${_lid}/confirm`, { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ match: m }) });
+    await fetch(`/lost-items/${_lid}/confirm`, { method:"POST", headers: authHeaders(), body: JSON.stringify({ atc_id: m.atc_id }) });
   } catch (e) {}
   $("result").innerHTML = claimGuide(m);
   loadMine();
@@ -495,7 +512,7 @@ async function confirmMatch(idx) {
 async function dismissMatch(idx) {
   const m = _matches[idx];
   try {
-    await fetch(`/lost-items/${_lid}/dismiss`, { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ atc_id: m.atc_id }) });
+    await fetch(`/lost-items/${_lid}/dismiss`, { method:"POST", headers: authHeaders(), body: JSON.stringify({ atc_id: m.atc_id }) });
   } catch (e) {}
   const card = document.querySelector(`#result .match[data-idx="${idx}"]`);
   if (card) card.remove();
@@ -535,7 +552,8 @@ function renderResult(d, userPhoto, timing = "") {
     $("resultCard").scrollIntoView({ behavior: "smooth", block: "nearest" });
     return;
   }
-  _lid = d.id; _matches = d.matches || [];
+  _lid = d.id; _token = d.token || ""; _matches = d.matches || [];
+  saveMineRef(d.id, d.token);
   const ex = d.extracted || {};
   const exChips = [ex.item, ex.brand, ex.color, ex.category && ("분류:"+ex.category), ex.place_context, ex.lost_date, ex.features];
   const banner = d.status === "candidate"
@@ -594,7 +612,7 @@ function alertPanel(d) {
         <input type="checkbox" id="alertWeak" ${$("notifyWeak").checked ? "checked" : ""} />
         <span>${t('notifyWeak')}</span>
       </label>
-      <div id="alertMsg" style="font-size:13px; margin-top:8px">${d.watch_until ? t('alertUntil', d.watch_until.slice(0, 10), esc(email)) : ""}</div>
+      <div id="alertMsg" style="font-size:13px; margin-top:8px">${d.email_pending ? t('verifySent', esc(email)) : (d.watch_until ? t('alertUntil', d.watch_until.slice(0, 10), "") : "")}</div>
     </div>`;
 }
 
@@ -604,15 +622,14 @@ async function saveAlerts() {
   $("alertMsg").textContent = t('saving');
   try {
     const res = await fetch(`/lost-items/${_lid}/alerts`, {
-      method:"POST", headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({ email, notify_weak: $("alertWeak").checked,
-                             watch_days: +$("alertDays").value, matches: _matches }) });
-    if (!res.ok) throw new Error(t('serverErr') + res.status);
+      method:"POST", headers: authHeaders(),
+      body: JSON.stringify({ email, notify_weak: $("alertWeak").checked, watch_days: +$("alertDays").value }) });
+    if (!res.ok) throw new Error(await errText(res));
     const r = await res.json();
     $("email").value = r.email; $("notifyWeak").checked = r.notify_weak;  // 등록 폼과 동기화
     $("alertWeak").checked = r.notify_weak;  // 이메일 없으면 서버가 옵트인 무효화 → 화면도 맞춤
-    $("alertMsg").innerHTML = `✅ ${t('alertSaved')} ${t('alertUntil', r.watch_until.slice(0, 10), esc(r.email))}`
-      + (r.sent_to ? ` ${t('resultsSent', esc(r.sent_to))}` : "");
+    $("alertMsg").innerHTML = `✅ ${t('alertSaved')} ` + (r.verification_sent ? t('verifySent', esc(r.email))
+      : t('alertUntil', r.watch_until.slice(0, 10), r.email_verified ? esc(r.email) : ""));
     loadMine();
   } catch (e) {
     $("alertMsg").textContent = t('errPrefix') + e.message;
@@ -622,7 +639,7 @@ async function saveAlerts() {
 // ── 실시간 진행: 서버가 단계마다 보내는 SSE(event: 단계명, data: JSON)를 읽어 패널을 갱신 ──
 async function streamPost(url, body, onEvent) {
   const res = await fetch(url, { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(body) });
-  if (!res.ok || !res.body) throw new Error(t('serverErr') + res.status);
+  if (!res.ok || !res.body) throw new Error(await errText(res));
   const reader = res.body.getReader(), dec = new TextDecoder();
   let buf = "";
   for (;;) {
@@ -735,14 +752,32 @@ async function registerLost() {
 
 let _photoB64 = null, _photoMime = null, _photoDataUrl = null;
 
+const PHOTO_MAX_PX = 1600;
+// 업로드 전 축소(긴 변 1600px JPEG) — Vision 비용·전송량·서버 메모리 절감. 못 그리는 형식(HEIC 등)은 원본.
+function shrinkPhoto(dataUrl) {
+  return new Promise(resolve => {
+    const im = new Image();
+    im.onload = () => {
+      const k = Math.min(1, PHOTO_MAX_PX / Math.max(im.width, im.height));
+      const c = document.createElement("canvas");
+      c.width = Math.round(im.width * k); c.height = Math.round(im.height * k);
+      c.getContext("2d").drawImage(im, 0, 0, c.width, c.height);
+      resolve(c.toDataURL("image/jpeg", 0.85));
+    };
+    im.onerror = () => resolve(null);
+    im.src = dataUrl;
+  });
+}
+
 function onPhoto(e) {
   const f = e.target.files[0]; if (!f) return;
-  _photoMime = f.type || "image/jpeg";
   const rd = new FileReader();
-  rd.onload = () => {
-    _photoDataUrl = rd.result;
-    _photoB64 = rd.result.split(",")[1];
-    const p = $("photoPreview"); p.src = rd.result; p.hidden = false;
+  rd.onload = async () => {
+    const small = await shrinkPhoto(rd.result);
+    _photoDataUrl = small || rd.result;
+    _photoMime = small ? "image/jpeg" : (f.type || "image/jpeg");
+    _photoB64 = _photoDataUrl.split(",")[1];
+    const p = $("photoPreview"); p.src = _photoDataUrl; p.hidden = false;
     $("goImg").disabled = false;
     $("hintImg").textContent = f.name.length > 20 ? f.name.slice(0, 20) + "…" : f.name;
   };
@@ -773,7 +808,9 @@ let _mineItems = [], _mineExpanded = false;
 async function loadMine() {
   $("mine").innerHTML = `<span class="muted">${t('loading')}</span>`;  // 새로고침 피드백
   try {
-    _mineItems = await (await fetch("/lost-items")).json();
+    const refs = mineRefs();
+    _mineItems = refs.length ? await (await fetch("/lost-items/mine", { method: "POST",
+      headers: { "Content-Type": "application/json" }, body: JSON.stringify({ items: refs }) })).json() : [];
     renderMine();
   } catch (e) {
     $("mine").innerHTML = `<span class="muted">${t('mineLoadFail')}</span>`;

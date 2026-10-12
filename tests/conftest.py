@@ -14,3 +14,18 @@ import tempfile
 os.environ.setdefault("GEMINI_API_KEY", "test-key")
 os.environ.pop("DATABASE_URL", None)  # SQLite 강제
 os.environ["DB_PATH"] = os.path.join(tempfile.mkdtemp(prefix="findit-test-"), "test.db")
+
+
+import pytest  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def _reset_limits():
+    """레이트리밋·일일 AI 상한은 프로세스 메모리 카운터 → 테스트끼리 섞이지 않게 매번 초기화."""
+    from apps.api import search
+    from apps.api.limits import limiter
+
+    limiter.reset()
+    search._KW_CACHE.clear()
+    yield
+    limiter.reset()

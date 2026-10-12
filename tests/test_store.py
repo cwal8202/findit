@@ -49,23 +49,41 @@ def test_dismiss_accumulates_and_dedups():
     assert store.get(lid)["status"] == "open"  # 제외 후 다시 찾는중
 
 
-def test_set_email():
-    lid = store.add("x", {}, [], [], None, None, email="")
-    store.set_email(lid, "me@example.com")
-    assert store.get(lid)["email"] == "me@example.com"
+def test_pending_email_then_verify():
+    lid = store.add("x", {}, [], [], None, None)
+    token = store.new_token()
+    store.set_pending_email(lid, "me@example.com", store.hash_token(token), "2999-01-01T00:00:00+00:00")
+    row = store.get(lid)
+    assert row["email"] == "me@example.com" and row["email_verified"] is False
+    assert row["verify_hash"] != token                  # 토큰 원문은 저장하지 않음(해시만)
+    assert store.verify_email("wrong") is None
+    assert store.verify_email(token)["email_verified"] is True
+    assert store.verify_email(token) is None            # 1회용
+
+
+def test_check_token_constant_and_hashed():
+    token = store.new_token()
+    lid = store.add("x", {}, [], [], None, None, token_hash=store.hash_token(token))
+    row = store.get(lid)
+    assert store.check_token(row, token) and not store.check_token(row, "nope")
+    assert not store.check_token(store.get(store.add("y", {}, [], [], None, None)), token)  # 토큰 없는 옛 신고
 
 
 def test_notify_weak_default_and_update_alerts():
     lid = store.add("x", {}, [], [], None, None)
     row = store.get(lid)
     assert row["notify_weak"] is False and row["watch_until"] is None  # 기본은 옵트아웃
-    store.update_alerts(lid, "me@example.com", True, "2026-12-31T00:00:00+00:00")
+    store.update_alerts(lid, True, "2026-12-31T00:00:00+00:00")
     row = store.get(lid)
-    assert (row["email"], row["notify_weak"], row["watch_until"]) == \
-        ("me@example.com", True, "2026-12-31T00:00:00+00:00")
+    assert (row["notify_weak"], row["watch_until"]) == (True, "2026-12-31T00:00:00+00:00")
     assert row["status"] == "open"                      # status 미지정 → 그대로
-    store.update_alerts(lid, "", False, "2026-12-31T00:00:00+00:00", status="expired")
+    store.update_alerts(lid, False, "2026-12-31T00:00:00+00:00", status="expired")
     assert store.get(lid)["status"] == "expired"
+
+
+def test_matched_at_set_when_registered_as_candidate():
+    lid = store.add("x", {}, [], [], {"name": "X"}, 90, status="candidate")
+    assert store.get(lid)["matched_at"]                 # 예전엔 'matched'와 비교해 항상 비어 있었음
 
 
 def test_mark_weak_notified_accumulates_and_dedups():
