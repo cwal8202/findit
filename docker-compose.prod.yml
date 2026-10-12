@@ -66,7 +66,7 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./infra/caddy:/etc/caddy:ro         # 디렉터리 마운트: git pull이 파일을 교체(inode 변경)해도 새 파일이 보이게
       - findit-caddy-data:/data            # 인증서 영속
       - findit-caddy-config:/config
     depends_on:
