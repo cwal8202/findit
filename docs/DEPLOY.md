@@ -107,12 +107,15 @@ chmod +x scripts/backup_db.sh
 
 ## 8-2. DB 비밀번호 (최초 1회 확인)
 `.env`에 `POSTGRES_PASSWORD`가 없으면 compose 기본값(`findit_pw`)이 쓰인다. DB는 외부에 노출되지 않지만 강한 값으로 바꿀 것.
-Postgres는 **처음 만들 때만** 이 값을 읽으므로, 이미 운영 중이면 DB 안에서 바꾸고 `.env`를 맞춘다:
+Postgres는 **처음 만들 때만** 이 값을 읽으므로, 이미 운영 중이면 DB 안에서 바꾸고 `.env`를 맞춘다.
+**수집이 돌고 있지 않을 때** 할 것(`docker ps | grep backend-run`이 비어 있어야 함) — 진행 중인 수집은 끝에 재매칭하며
+옛 비밀번호로 DB에 새로 접속해 실패한다. `.env`가 바뀌면 postgres 컨테이너도 재생성되지만 데이터는 볼륨에 유지.
 ```bash
 P=$(openssl rand -hex 24)
 docker compose -f docker-compose.prod.yml exec -T postgres psql -U findit -c "ALTER USER findit WITH PASSWORD '$P'"
 echo "POSTGRES_PASSWORD=$P" >> .env
-docker compose -f docker-compose.prod.yml up -d backend    # DATABASE_URL 갱신
+docker compose -f docker-compose.prod.yml up -d postgres backend    # DATABASE_URL 갱신(수 초 중단)
+curl -s localhost/health                                            # 확인
 ```
 
 ## 9. 자동배포 (GitHub Actions)
