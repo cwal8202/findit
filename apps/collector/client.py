@@ -16,7 +16,7 @@ import xml.etree.ElementTree as ET
 
 from apps.api.config import settings
 
-BASE = "http://apis.data.go.kr/1320000"
+BASE = "https://apis.data.go.kr/1320000"  # https — 서비스키가 쿼리에 실리므로 평문 전송 금지
 
 # 소스별 오퍼레이션 (경찰청 vs 포털기관, 스키마 동일)
 SOURCES = {

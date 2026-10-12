@@ -25,8 +25,9 @@ class LLMRouteResolver:
     def expand(self, place_context: str) -> list[str]:
         if not place_context:
             return []
-        res = gemini.generate_json(_PROMPT.format(place=place_context)) or {}
-        regions = res.get("regions") or []
+        res = gemini.generate_json(_PROMPT.format(place=place_context))
+        regions = res.get("regions") if isinstance(res, dict) else None
+        regions = regions if isinstance(regions, list) else []
         return [r.strip() for r in regions if isinstance(r, str) and r.strip()][:20]
 
 

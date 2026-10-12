@@ -32,12 +32,16 @@ _GRADE_PROMPT = """당신은 분실물↔습득물 매칭 심판입니다.
 """
 
 
-def _post(url: str, body: dict, timeout: int = 60, max_retry: int = 6) -> dict:
-    """429/5xx는 지수 백오프로 재시도(대량 임베딩·쿼터 대응)."""
+def _post(url: str, body: dict, timeout: int = 60, max_retry: int = 3) -> dict:
+    """429/5xx는 백오프 재시도. 기본 3회(사용자 대기 중인 요청) — 대량 배치 임베딩만 더 길게.
+
+    API 키는 URL 쿼리가 아니라 `x-goog-api-key` 헤더로(오류 로그·추적에 URL이 찍혀도 키가 남지 않게).
+    """
     payload = json.dumps(body).encode("utf-8")
+    headers = {"Content-Type": "application/json", "x-goog-api-key": settings.gemini_api_key}
     for attempt in range(max_retry):
         try:
-            req = urllib.request.Request(url, payload, {"Content-Type": "application/json"})
+            req = urllib.request.Request(url, payload, headers)
             with urllib.request.urlopen(req, timeout=timeout) as r:
                 return json.load(r)
         except urllib.error.HTTPError as e:
@@ -55,7 +59,7 @@ def _post(url: str, body: dict, timeout: int = 60, max_retry: int = 6) -> dict:
 
 def embed_query(text: str) -> list[float]:
     """질의 → 정규화된 768-dim 벡터 (batchEmbedContents 1건)."""
-    url = f"{_BASE}/{settings.gemini_embed_model}:batchEmbedContents?key={settings.gemini_api_key}"
+    url = f"{_BASE}/{settings.gemini_embed_model}:batchEmbedContents"
     body = {
         "requests": [{
             "model": f"models/{settings.gemini_embed_model}",
@@ -70,7 +74,7 @@ def embed_query(text: str) -> list[float]:
 
 def generate_json(prompt: str, timeout: int = 60):
     """gemini-3.6-flash로 JSON 응답 생성(추출·라우팅 등 재사용). 실패 시 None."""
-    url = f"{_BASE}/{settings.gemini_grade_model}:generateContent?key={settings.gemini_api_key}"
+    url = f"{_BASE}/{settings.gemini_grade_model}:generateContent"
     body = {
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {"responseMimeType": "application/json", "temperature": 0},
@@ -84,7 +88,7 @@ def generate_json(prompt: str, timeout: int = 60):
 
 def generate_json_image(prompt: str, image_b64: str, mime: str = "image/jpeg", timeout: int = 60):
     """사진 + 프롬프트 → JSON (Vision 추출용). gemini-3.6-flash 멀티모달. 실패 시 None."""
-    url = f"{_BASE}/{settings.gemini_grade_model}:generateContent?key={settings.gemini_api_key}"
+    url = f"{_BASE}/{settings.gemini_grade_model}:generateContent"
     body = {
         "contents": [{"parts": [
             {"inline_data": {"mime_type": mime, "data": image_b64}},
@@ -112,7 +116,7 @@ def compare_images(user_b64: str, cand_b64: str, user_mime: str = "image/jpeg",
     prompt = _COMPARE_PROMPT
     if lang != "ko":
         prompt += f"\n중요: 'reason'은 {lang_name(lang)}로 작성하세요."
-    url = f"{_BASE}/{settings.gemini_grade_model}:generateContent?key={settings.gemini_api_key}"
+    url = f"{_BASE}/{settings.gemini_grade_model}:generateContent"
     body = {
         "contents": [{"parts": [
             {"text": prompt},
@@ -132,7 +136,7 @@ def compare_images(user_b64: str, cand_b64: str, user_mime: str = "image/jpeg",
 def embed_texts(texts: list[str], chunk: int = 50) -> list[list[float]]:
     """여러 문서를 배치 임베딩(정규화). 수집기 색인용. batchEmbedContents 청크."""
     out: list[list[float]] = []
-    url = f"{_BASE}/{settings.gemini_embed_model}:batchEmbedContents?key={settings.gemini_api_key}"
+    url = f"{_BASE}/{settings.gemini_embed_model}:batchEmbedContents"
     n_chunks = (len(texts) + chunk - 1) // chunk
     for idx, i in enumerate(range(0, len(texts), chunk)):
         part = texts[i : i + chunk]
@@ -141,7 +145,7 @@ def embed_texts(texts: list[str], chunk: int = 50) -> list[list[float]]:
             "content": {"parts": [{"text": t}]},
             "outputDimensionality": settings.gemini_embed_dim,
         } for t in part]}
-        for e in _post(url, body, timeout=120)["embeddings"]:
+        for e in _post(url, body, timeout=120, max_retry=6)["embeddings"]:  # 수집 배치: 쿼터 대비 길게
             v = e["values"]
             n = math.sqrt(sum(x * x for x in v)) or 1.0
             out.append([x / n for x in v])
@@ -217,13 +221,35 @@ def grade(query: str, candidates: list[dict], lang: str = "ko") -> list[dict]:
             f'"desc_en"(한 줄 {lname} 설명; 특이사항 있으면 반영). '
             f'즉 각 항목: {{"id":n, "score":0~100, "reason":"..", "name_en":"..", "desc_en":".."}}.'
         )
-    url = f"{_BASE}/{settings.gemini_grade_model}:generateContent?key={settings.gemini_api_key}"
+    url = f"{_BASE}/{settings.gemini_grade_model}:generateContent"
     body = {
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {"responseMimeType": "application/json", "temperature": 0},
     }
     try:
         text = _post(url, body)["candidates"][0]["content"]["parts"][0]["text"]
-        return json.loads(text)
+        return clean_grades(json.loads(text), len(candidates))
     except (KeyError, IndexError, json.JSONDecodeError, urllib.error.URLError):
         return []
+
+
+def clean_grades(raw, n: int) -> list[dict]:
+    """LLM 판정 응답 검증 — 리스트·정수 id(0..n-1)·점수 0~100·문자열 근거만 통과(형식 이탈로 요청이 죽지 않게)."""
+    if isinstance(raw, dict):  # {"results": [...]}처럼 감싸 온 경우
+        raw = next((v for v in raw.values() if isinstance(v, list)), [])
+    out = []
+    for x in raw if isinstance(raw, list) else []:
+        if not isinstance(x, dict):
+            continue
+        try:
+            i, score = int(x.get("id")), int(round(float(x.get("score"))))
+        except (TypeError, ValueError):
+            continue
+        if not 0 <= i < n:
+            continue
+        item = {"id": i, "score": max(0, min(100, score))}
+        for k in ("reason", "name_en", "desc_en"):
+            if isinstance(x.get(k), str):
+                item[k] = x[k].strip()[:300]
+        out.append(item)
+    return out

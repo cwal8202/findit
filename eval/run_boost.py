@@ -20,6 +20,9 @@ from pathlib import Path
 
 from run_embed import cos_ranked, embed_batch, norm  # 임베딩 유틸 재사용
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # 레포 루트 — 앱의 지역 매칭 함수를 그대로 평가
+from apps.api.region import region_matches  # noqa: E402
+
 ROOT = Path(__file__).resolve().parent
 CORPUS = ROOT / "data" / "corpus.json"
 CACHE = ROOT / "data" / "emb_cache.json"
@@ -62,8 +65,8 @@ def make_resolver(gaz: dict):
 
 
 def region_match(resolved: str, region_set: list[str]) -> bool:
-    """resolved(예 '전라남도 순천시')가 region_set(예 ['순천','광주'])의 어느 항목이라도 포함하면 True."""
-    return any(r and r in resolved for r in region_set)
+    """resolved(예 '전라남도 순천시')가 region_set(예 ['순천','광주'])에 드는가 — 앱과 같은 함수로 평가."""
+    return region_matches(resolved, region_set)
 
 
 # ---------- 임베딩 로딩(캐시 우선, 없으면 소량 임베딩) ----------
